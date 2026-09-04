@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source code
 COPY . .
 
-# Expose port
+# Expose port (default 8000 locally, Cloud Run injects $PORT)
 EXPOSE 8000
 
-# Command to run the FastAPI application
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the FastAPI application with dynamic Cloud Run PORT support
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
