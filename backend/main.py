@@ -12,6 +12,8 @@ from backend.api.agent import router as agent_router
 from backend.api.analytics import router as analytics_router
 from backend.api.policy import router as policy_router
 from backend.api.export import router as export_router
+from backend.api.auth import router as auth_router
+from backend.api.simulator import router as simulator_router
 
 app = FastAPI(
     title="RecoverPay AI - Autonomous Revenue Recovery API",
@@ -26,6 +28,8 @@ app.include_router(agent_router)
 app.include_router(analytics_router)
 app.include_router(policy_router)
 app.include_router(export_router)
+app.include_router(auth_router)
+app.include_router(simulator_router)
 
 # Enable CORS for React frontend dashboard
 app.add_middleware(
@@ -56,6 +60,8 @@ def root():
 def health_check():
     db_client, is_mock = get_db()
     policy = PolicyRepository.get_policy()
+    from backend.services.razorpay_service import razorpay_service
+    rzp_status = razorpay_service.verify_credentials()
     
     return {
         "status": "healthy",
@@ -64,6 +70,11 @@ def health_check():
             "type": "Firebase Firestore",
             "mock_mode": is_mock,
             "connected": db_client is not None
+        },
+        "razorpay": {
+            "mode": rzp_status.get("mode", "sandbox"),
+            "authenticated": rzp_status.get("authenticated", False),
+            "key_id": f"{settings.RAZORPAY_KEY_ID[:12]}***" if settings.RAZORPAY_KEY_ID else None
         },
         "environment": settings.ENVIRONMENT,
         "default_policies": {

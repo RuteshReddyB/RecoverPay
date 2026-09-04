@@ -10,20 +10,45 @@ class RazorpayService:
         self.key_id = settings.RAZORPAY_KEY_ID
         self.key_secret = settings.RAZORPAY_KEY_SECRET
         self.client = None
+        self.is_live_sdk = False
         self._init_sdk()
 
     def _init_sdk(self):
-        if self.key_id and not self.key_id.startswith("rzp_test_mock"):
+        if self.key_id and not self.key_id.startswith("rzp_test_mock") and not self.key_secret.startswith("mock"):
             try:
                 import razorpay
                 self.client = razorpay.Client(auth=(self.key_id, self.key_secret))
-                logger.info("Razorpay SDK initialized with test mode credentials.")
+                self.is_live_sdk = True
+                logger.info(f"Razorpay SDK active with key_id: {self.key_id[:12]}***")
             except Exception as e:
                 logger.warning(f"Failed to initialize Razorpay SDK: {e}. Running in Razorpay Test Sandbox mode.")
                 self.client = None
+                self.is_live_sdk = False
         else:
             logger.info("Running Razorpay Service in Sandbox Test Mode.")
             self.client = None
+            self.is_live_sdk = False
+
+    def verify_credentials(self) -> Dict[str, Any]:
+        """Verify if configured Razorpay Test keys can authenticate successfully."""
+        if not self.client:
+            return {"authenticated": False, "mode": "sandbox", "message": "Using Test Sandbox"}
+        try:
+            self.client.payment.all({"count": 1})
+            return {"authenticated": True, "mode": "live_test_api", "key_id": f"{self.key_id[:12]}***"}
+        except Exception as e:
+            logger.warning(f"Razorpay authentication check note: {e}")
+            return {"authenticated": False, "mode": "sandbox_fallback", "error": str(e)}
+
+    def fetch_payment(self, payment_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch live payment from Razorpay Test API if available."""
+        if self.client and payment_id.startswith("pay_"):
+            try:
+                pmt = self.client.payment.fetch(payment_id)
+                return pmt
+            except Exception as e:
+                logger.warning(f"Could not fetch {payment_id} from Razorpay API: {e}")
+        return None
 
     def create_payment_link(
         self,

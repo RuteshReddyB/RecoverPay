@@ -50,3 +50,24 @@ def test_export_benchmark_csv_api():
     assert "text/csv" in response.headers["content-type"]
     assert "recoverpay_benchmark_report.csv" in response.headers["content-disposition"]
     assert "RecoverPay AI" in response.text
+
+def test_get_merchant_policy_presets_api():
+    """Verify policy presets endpoint returns 4 curated industry configurations."""
+    response = client.get("/api/policy/presets")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "presets" in data
+    assert len(data["presets"]) == 4
+    
+    preset_ids = [p["id"] for p in data["presets"]]
+    assert "saas" in preset_ids
+    assert "ecommerce" in preset_ids
+    assert "b2b" in preset_ids
+    assert "default" in preset_ids
+    
+    for p in data["presets"]:
+        assert "name" in p
+        assert "badge" in p
+        assert "policy" in p
+        assert "max_auto_recovery_amount_rupees" in p["policy"]

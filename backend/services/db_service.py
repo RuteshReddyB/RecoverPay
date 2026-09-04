@@ -90,6 +90,10 @@ class PaymentRepository:
         doc = db.collection("payments").document(payment_id).get()
         if doc.exists:
             return PaymentSchema(**doc.to_dict())
+        # Fallback lookup by razorpay_payment_id
+        docs = list(db.collection("payments").where("razorpay_payment_id", "==", payment_id).limit(1).stream())
+        if docs:
+            return PaymentSchema(**docs[0].to_dict())
         return None
 
     @staticmethod

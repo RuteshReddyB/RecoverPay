@@ -46,3 +46,66 @@ def update_merchant_policy(request: PolicyUpdateRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update merchant policy: {str(e)}")
+
+@router.get("/presets")
+def get_policy_presets():
+    """
+    Returns curated merchant policy presets tailored to specific business verticals.
+    """
+    return {
+        "status": "success",
+        "presets": [
+            {
+                "id": "saas",
+                "name": "SaaS / Subscriptions",
+                "badge": "High Retention",
+                "description": "Optimized for recurring subscriptions. Tolerates higher automated retries and rapid smart recovery before escalating.",
+                "policy": {
+                    "max_auto_recovery_amount_rupees": 50000.0,
+                    "max_retry_attempts": 3,
+                    "min_recovery_probability": 0.15,
+                    "max_contact_attempts": 3,
+                    "auto_recovery_enabled": True
+                }
+            },
+            {
+                "id": "ecommerce",
+                "name": "High-Volume E-Commerce",
+                "badge": "Instant Recovery",
+                "description": "Optimized for consumer checkouts with WhatsApp & UPI smart links to capture impulse purchases before drop-off.",
+                "policy": {
+                    "max_auto_recovery_amount_rupees": 25000.0,
+                    "max_retry_attempts": 2,
+                    "min_recovery_probability": 0.20,
+                    "max_contact_attempts": 2,
+                    "auto_recovery_enabled": True
+                }
+            },
+            {
+                "id": "b2b",
+                "name": "B2B High-Ticket",
+                "badge": "High Touch",
+                "description": "Designed for wholesale and enterprise invoices. Low retry tolerance with early VIP concierge escalation.",
+                "policy": {
+                    "max_auto_recovery_amount_rupees": 75000.0,
+                    "max_retry_attempts": 1,
+                    "min_recovery_probability": 0.35,
+                    "max_contact_attempts": 2,
+                    "auto_recovery_enabled": True
+                }
+            },
+            {
+                "id": "default",
+                "name": "Standard Balanced",
+                "badge": "Balanced",
+                "description": "Default multi-channel recovery policy suitable for general digital merchants and blended checkouts.",
+                "policy": {
+                    "max_auto_recovery_amount_rupees": 100000.0,
+                    "max_retry_attempts": 2,
+                    "min_recovery_probability": 0.20,
+                    "max_contact_attempts": 2,
+                    "auto_recovery_enabled": True
+                }
+            }
+        ]
+    }

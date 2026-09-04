@@ -11,6 +11,7 @@ from backend.services.db_service import (
 )
 from backend.schemas.recovery import RecoveryAttemptCreate
 from backend.schemas.audit import AuditLogCreate
+from backend.schemas.escalation import EscalationResolveRequest, EscalationResolveResponse
 from backend.db.firebase import get_db
 import uuid
 
@@ -202,6 +203,71 @@ def reject_human_escalation(request: ExecuteRequest):
         }
     ))
     return {"status": "success", "message": "Escalation rejected successfully"}
+
+@router.post("/escalations/{payment_id}/resolve", response_model=EscalationResolveResponse)
+def resolve_human_escalation(payment_id: str, request: EscalationResolveRequest):
+    payment = PaymentRepository.get_payment(payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+
+    customer = CustomerRepository.get_customer(payment.customer_id)
+    customer_data = customer.model_dump() if customer else {}
+    
+    execution_result = {}
+    new_status = "resolved"
+
+    if request.resolution_action == "MANUAL_RETRY":
+        execution_result = razorpay_service.retry_payment(payment.razorpay_payment_id)
+        new_status = "captured"
+        PaymentRepository.update_payment_status(payment.id, "captured")
+        CustomerRepository.update_metrics(payment.customer_id, is_success=True, amount_paisa=payment.amount_paisa)
+    elif request.resolution_action == "SEND_VIP_LINK":
+        execution_result = razorpay_service.create_payment_link(
+            amount_paisa=payment.amount_paisa,
+            customer_name=customer_data.get("name", "VIP Customer"),
+            customer_email=customer_data.get("email", "vip@example.com"),
+            customer_phone=customer_data.get("phone", "+919876543210")
+        )
+        new_status = "link_sent"
+        PaymentRepository.update_payment_status(payment.id, "link_sent")
+    elif request.resolution_action == "MARK_RESOLVED_OFFLINE":
+        new_status = "captured"
+        PaymentRepository.update_payment_status(payment.id, "captured")
+        CustomerRepository.update_metrics(payment.customer_id, is_success=True, amount_paisa=payment.amount_paisa)
+        execution_result = {"status": "resolved_via_offline_neft_rtgs", "notes": request.operator_notes}
+    elif request.resolution_action == "WRITE_OFF":
+        new_status = "rejected"
+        PaymentRepository.update_payment_status(payment.id, "rejected")
+        execution_result = {"status": "written_off_unrecoverable", "notes": request.operator_notes}
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid resolution action: {request.resolution_action}")
+
+    # Append immutable audit log
+    audit_log = AuditLogRepository.append_log(AuditLogCreate(
+        event_id=f"evt_res_{uuid.uuid4().hex[:8]}",
+        entity_type="payment",
+        entity_id=payment.id,
+        actor=request.resolved_by or "HUMAN_OPERATOR",
+        action=f"HUMAN_ESCALATION_RESOLVED_{request.resolution_action}",
+        details={
+            "payment_id": payment.id,
+            "resolution_action": request.resolution_action,
+            "operator_notes": request.operator_notes,
+            "resolved_by": request.resolved_by,
+            "previous_status": payment.status,
+            "new_status": new_status,
+            "execution_result": execution_result
+        }
+    ))
+
+    return EscalationResolveResponse(
+        status="success",
+        payment_id=payment.id,
+        resolution_action=request.resolution_action,
+        new_status=new_status,
+        audit_log_id=audit_log.id,
+        message=f"Escalation successfully resolved via {request.resolution_action}."
+    )
 
 @router.get("/queue")
 def get_recovery_queue():

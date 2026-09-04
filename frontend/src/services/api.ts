@@ -19,6 +19,12 @@ export interface OverviewKPIs {
   ai_uplift_pct: number;
   additional_recovered_rupees: number;
   active_recovery_cases: number;
+  // New fields from updated /api/analytics/overview endpoint:
+  rule_based_recovery_rate_pct?: number;
+  baseline_recovery_rate_pct?: number;
+  uplift_vs_rule_based_pct?: number;
+  reproducible?: boolean;
+  benchmark_seed?: number;
 }
 
 export interface RevenueFunnel {
@@ -46,6 +52,27 @@ export interface RecoveryCase {
   created_at: string;
 }
 
+export interface FeatureAttribution {
+  feature_name: string;
+  impact_pct: number;
+  direction: 'positive' | 'negative';
+  explanation: string;
+}
+
+export interface PolicyPreset {
+  id: string;
+  name: string;
+  badge: string;
+  description: string;
+  policy: {
+    max_auto_recovery_amount_rupees: number;
+    max_retry_attempts: number;
+    min_recovery_probability: number;
+    max_contact_attempts: number;
+    auto_recovery_enabled: boolean;
+  };
+}
+
 export interface ReasoningStep {
   step_index: number;
   tool_name: string;
@@ -65,6 +92,8 @@ export interface AgentExecution {
   execution_result: Record<string, any>;
   reasoning_trace: ReasoningStep[];
   completed_at: string;
+  agent_attempts: number;    // retry loop attempt count (1 = success first try, 2 = re-evaluated)
+  feature_attributions?: FeatureAttribution[];
 }
 
 export interface AuditLogItem {
@@ -133,12 +162,42 @@ export interface BenchmarkReport {
   };
 }
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  name: string;
+  role: 'MERCHANT_ADMIN' | 'OPERATIONS_LEAD' | 'COMPLIANCE_AUDITOR';
+  title: string;
+  permissions: string[];
+}
+
+export interface RoleInfo {
+  key: string;
+  role: string;
+  name: string;
+  description: string;
+}
+
+let activeAuthToken: string | null = null;
+
+export const setAuthToken = (token: string | null) => {
+  activeAuthToken = token;
+};
+
+export const getAuthToken = () => activeAuthToken;
+
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  };
+
+  if (activeAuthToken) {
+    headers['Authorization'] = `Bearer ${activeAuthToken}`;
+  }
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers,
     ...options,
   });
 
@@ -226,6 +285,15 @@ export const api = {
       body: JSON.stringify({ payment_id: paymentId }),
     }),
 
+  resolveEscalation: (paymentId: string, data: { resolution_action: string; operator_notes: string; resolved_by?: string }) =>
+    fetchJson<{ status: string; payment_id: string; resolution_action: string; new_status: string; audit_log_id: string; message: string }>(
+      `/api/recovery/escalations/${paymentId}/resolve`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+
   runAutonomousAgent: (paymentId: string, customerId?: string) =>
     fetchJson<{ status: string; agent_execution: AgentExecution }>('/api/agent/run', {
       method: 'POST',
@@ -236,16 +304,24 @@ export const api = {
     fetchJson<{ status: string; count: number; logs: AuditLogItem[] }>(`/api/recovery/audit-logs?limit=${limit}`),
 
   simulateEvent: (eventType: 'bank_timeout' | 'card_expired' | 'high_value' | 'duplicate_webhook') =>
-    fetchJson<{ status: string; simulated_event: any; agent_result: AgentExecution; agent_execution?: AgentExecution }>('/api/agent/run', {
+    fetchJson<{
+      status: string;
+      event_type: string;
+      idempotency_verified?: boolean;
+      agent_result: AgentExecution;
+      agent_execution?: AgentExecution;
+    }>('/api/simulator/trigger', {
       method: 'POST',
       body: JSON.stringify({
-        payment_id: `pay_sim_${eventType}_${Date.now().toString().slice(-4)}`,
-        customer_id: eventType === 'high_value' ? 'c_vip_808' : 'c_demo_101',
+        event_type: eventType,
       }),
     }),
 
   getPolicy: () =>
     fetchJson<{ status: string; policy: any }>('/api/policy'),
+
+  getPolicyPresets: () =>
+    fetchJson<{ status: string; presets: PolicyPreset[] }>('/api/policy/presets'),
 
   updatePolicy: (policyData: {
     max_auto_recovery_amount_rupees: number;
@@ -261,4 +337,17 @@ export const api = {
 
   getAuditLogCsvUrl: () => `${API_BASE_URL}/api/export/audit-logs/csv`,
   getBenchmarkCsvUrl: () => `${API_BASE_URL}/api/export/benchmark/csv`,
+  getBenchmarkPdfUrl: () => `${API_BASE_URL}/api/analytics/export-pdf`,
+
+  login: (roleKey: string = 'admin') =>
+    fetchJson<{ status: string; token: string; user: AuthUser }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ role_key: roleKey }),
+    }),
+
+  getMe: () =>
+    fetchJson<{ status: string; user: AuthUser }>('/api/auth/me'),
+
+  getRoles: () =>
+    fetchJson<{ status: string; roles: RoleInfo[] }>('/api/auth/roles'),
 };

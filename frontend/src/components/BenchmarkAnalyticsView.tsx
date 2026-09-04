@@ -20,27 +20,27 @@ export const BenchmarkAnalyticsView: React.FC<BenchmarkAnalyticsViewProps> = ({ 
   // Uplift values — use new nested structure
   const upliftVsBaseline = summary?.revenue_uplift_vs_baseline_pct
     ?? fin?.financial_uplift?.ai_vs_baseline?.revenue_uplift_pct
-    ?? 203.02;
+    ?? 180.85;
 
   const upliftVsRuleBased = summary?.revenue_uplift_vs_rule_based_pct
     ?? fin?.financial_uplift?.ai_vs_rule_based?.revenue_uplift_pct
-    ?? 16.35;
+    ?? 7.74;
 
-  const additionalRecovered = fin?.financial_uplift?.ai_vs_baseline?.additional_revenue_recovered_rupees ?? 65037;
+  const additionalRecovered = fin?.financial_uplift?.ai_vs_baseline?.additional_revenue_recovered_rupees ?? 603508.28;
 
   // 3-strategy comparison chart data
   const comparisonData = [
     {
       metric: 'Revenue Recovered (₹)',
-      'Fixed Retry': baseline ? Math.round(baseline.recovered_rupees) : 32034,
-      'Rule-Based': ruleBased ? Math.round(ruleBased.recovered_rupees) : 83431,
-      'RecoverPay AI': ai ? Math.round(ai.recovered_rupees) : 97070,
+      'Fixed Retry': baseline ? Math.round(baseline.recovered_rupees) : 333713,
+      'Rule-Based': ruleBased ? Math.round(ruleBased.recovered_rupees) : 869907,
+      'RecoverPay AI': ai ? Math.round(ai.recovered_rupees) : 937222,
     },
     {
       metric: 'Recovery Rate (%)',
-      'Fixed Retry': baseline ? baseline.recovery_rate_pct : 25.14,
-      'Rule-Based': ruleBased ? ruleBased.recovery_rate_pct : 65.46,
-      'RecoverPay AI': ai ? ai.recovery_rate_pct : 76.17,
+      'Fixed Retry': baseline ? baseline.recovery_rate_pct : 26.8,
+      'Rule-Based': ruleBased ? ruleBased.recovery_rate_pct : 69.86,
+      'RecoverPay AI': ai ? ai.recovery_rate_pct : 75.27,
     },
   ];
 
@@ -76,21 +76,30 @@ export const BenchmarkAnalyticsView: React.FC<BenchmarkAnalyticsViewProps> = ({ 
               Honest simulation — AI uses raw XGBoost predictions only. No probability floor or boost.
             </p>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
+            <a
+              href={api.getBenchmarkPdfUrl()}
+              download="recoverpay_executive_board_report.pdf"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold backdrop-blur-sm border border-indigo-400/40 shadow-sm transition-all"
+              title="Download Executive C-Level Board Summary PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Executive PDF Report</span>
+            </a>
             <a
               href={api.getBenchmarkCsvUrl()}
               download="recoverpay_benchmark_report.csv"
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-xs border border-white/20 transition-all"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm border border-white/20 transition-all"
             >
-              <Download className="w-4 h-4 text-emerald-400" />
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
               <span>Export CSV</span>
             </a>
-            <div className="text-right shrink-0 bg-white/10 p-4 rounded-xl backdrop-blur-xs">
+            <div className="text-right shrink-0 bg-white/10 p-3 rounded-xl backdrop-blur-sm">
               <span className="text-xs text-indigo-200">AI Recovery Rate</span>
-              <p className="text-3xl font-bold font-outfit text-emerald-400">
+              <p className="text-2xl font-bold font-outfit text-emerald-400">
                 {(ai?.recovery_rate_pct ?? 76.17).toFixed(2)}%
               </p>
-              <span className="text-xs text-indigo-200">vs {(baseline?.recovery_rate_pct ?? 25.14).toFixed(2)}% Baseline</span>
+              <span className="text-[10px] text-indigo-200">vs {(baseline?.recovery_rate_pct ?? 25.14).toFixed(2)}% Baseline</span>
             </div>
           </div>
         </div>

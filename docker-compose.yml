@@ -5,13 +5,8 @@ services:
       dockerfile: Dockerfile.backend
     ports:
       - "8010:8000"
-    environment:
-      - ENVIRONMENT=production
-      - FIREBASE_PROJECT_ID=recoverpayai
-      - FIREBASE_MOCK_MODE=false
-      - RAZORPAY_KEY_ID=rzp_test_TUj4pd2xGZMYDy
-      - RAZORPAY_KEY_SECRET=UJb5tzxY6MXI1G2IG0o2uP8i
-      - RAZORPAY_WEBHOOK_SECRET=webhooksecret789
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data
       - ./models:/app/models

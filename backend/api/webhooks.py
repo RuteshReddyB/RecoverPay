@@ -46,7 +46,48 @@ async def handle_razorpay_webhook(
 
     logger.info(f"[WEBHOOK INGESTION] Processing event {event_type} ({event_id})")
 
-    # Extract payment entity
+    # Handle Successful Customer Payment (Payment Captured / Payment Link Paid)
+    if event_type in ["payment.captured", "payment_link.paid", "order.paid"]:
+        entity = (
+            payload.get("payload", {}).get("payment", {}).get("entity")
+            or payload.get("payload", {}).get("payment_link", {}).get("entity")
+            or payload.get("payload", {}).get("order", {}).get("entity", {})
+        )
+        razorpay_payment_id = entity.get("id") or entity.get("payment_id") or "pay_captured_webhook"
+        amount_paisa = entity.get("amount", 499900)
+        
+        # Locate existing payment record in DB
+        payment = PaymentRepository.get_payment(razorpay_payment_id)
+        if payment:
+            PaymentRepository.update_payment_status(payment.id, "captured")
+            CustomerRepository.update_metrics(payment.customer_id, is_success=True, amount_paisa=amount_paisa)
+            pid = payment.id
+        else:
+            pid = razorpay_payment_id
+
+        AuditLogRepository.append_log(AuditLogCreate(
+            event_id=event_id,
+            entity_type="payment",
+            entity_id=pid,
+            actor="RAZORPAY_WEBHOOK",
+            action=f"PAYMENT_SUCCESSFULLY_CAPTURED_{event_type.upper()}",
+            details={
+                "razorpay_payment_id": razorpay_payment_id,
+                "amount_paisa": amount_paisa,
+                "status": "captured",
+                "event_type": event_type
+            }
+        ))
+        
+        logger.info(f"[WEBHOOK SUCCESS] Payment {pid} marked as captured and recovered.")
+        return {
+            "status": "processed",
+            "event_type": event_type,
+            "payment_id": pid,
+            "message": "Payment captured and recovered successfully."
+        }
+
+    # Extract payment entity for payment.failed
     entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
     razorpay_payment_id = entity.get("id", "pay_webhook_test")
     amount_paisa = entity.get("amount", 499900)

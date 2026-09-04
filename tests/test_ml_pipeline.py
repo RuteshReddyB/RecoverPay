@@ -53,3 +53,26 @@ def test_prediction_api_endpoint():
     p_link = next(a for a in actions if a["action"] == "PAYMENT_LINK")
     p_retry = next(a for a in actions if a["action"] == "RETRY")
     assert p_link["probability"] > p_retry["probability"]
+
+def test_predictor_explain_prediction():
+    """Verify explain_prediction returns structured feature contributions."""
+    customer = {
+        "lifetime_value_paisa": 3500000,
+        "historical_success_rate": 0.95
+    }
+    payment = {
+        "amount_paisa": 150000,
+        "failure_reason": "bank_timeout",
+        "payment_method": "upi",
+        "retry_count": 0
+    }
+    attributions = predictor.explain_prediction(customer, payment, action="PAYMENT_LINK")
+    assert isinstance(attributions, list)
+    assert len(attributions) >= 3
+    
+    for attr in attributions:
+        assert "feature_name" in attr
+        assert "impact_pct" in attr
+        assert attr["direction"] in ["positive", "negative"]
+        assert "explanation" in attr
+        assert isinstance(attr["explanation"], str)

@@ -34,6 +34,12 @@ class MockFirestoreCollection:
     def order_by(self, field: str, direction: str = "ASCENDING"):
         return MockQuery(self, [], order_by=(field, direction))
 
+    def limit(self, count: int):
+        return MockQuery(self, [], limit=count)
+
+    def offset(self, count: int):
+        return MockQuery(self, [], offset=count)
+
 class MockDocumentSnapshot:
     def __init__(self, doc_id: str, data: Dict[str, Any]):
         self.id = doc_id
@@ -69,17 +75,25 @@ class MockFirestoreDocument:
             del self.collection._documents[self.id]
 
 class MockQuery:
-    def __init__(self, collection: MockFirestoreCollection, filters: List, order_by=None):
+    def __init__(self, collection: MockFirestoreCollection, filters: Optional[List] = None, order_by=None, limit: Optional[int] = None, offset: Optional[int] = None):
         self.collection = collection
-        self.filters = filters
+        self.filters = filters or []
         self._order_by = order_by
+        self._limit = limit
+        self._offset = offset
 
     def where(self, field: str, op: str, value: Any):
         new_filters = self.filters + [(field, op, value)]
-        return MockQuery(self.collection, new_filters, self._order_by)
+        return MockQuery(self.collection, new_filters, self._order_by, self._limit, self._offset)
 
     def order_by(self, field: str, direction: str = "ASCENDING"):
-        return MockQuery(self.collection, self.filters, (field, direction))
+        return MockQuery(self.collection, self.filters, (field, direction), self._limit, self._offset)
+
+    def limit(self, count: int):
+        return MockQuery(self.collection, self.filters, self._order_by, count, self._offset)
+
+    def offset(self, count: int):
+        return MockQuery(self.collection, self.filters, self._order_by, self._limit, count)
 
     def stream(self):
         results = []
@@ -93,7 +107,7 @@ class MockQuery:
                     match = False
                 elif op == "<=" and (doc_val is None or doc_val > val):
                     match = False
-                elif op == "in" and doc_val not in val:
+                elif op == "in" and (val is None or doc_val not in val):
                     match = False
             if match:
                 results.append(MockDocumentSnapshot(doc_id, data))
@@ -102,6 +116,11 @@ class MockQuery:
             field, direction = self._order_by
             reverse = direction.upper() in ["DESC", "DESCENDING"]
             results.sort(key=lambda x: x.to_dict().get(field, ""), reverse=reverse)
+
+        if self._offset:
+            results = results[self._offset:]
+        if self._limit is not None:
+            results = results[:self._limit]
 
         for res in results:
             yield res

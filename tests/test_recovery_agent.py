@@ -35,3 +35,33 @@ def test_agent_api_endpoints():
     assert tools_res.status_code == 200
     tools_data = tools_res.json()
     assert tools_data["total_tools"] == 8
+
+def test_agent_result_has_attempts_field():
+    """agent_attempts must always be present and between 1 and MAX_AGENT_ATTEMPTS (2)."""
+    result = recovery_agent.run_recovery_workflow("pay_attempts_test_001")
+    assert hasattr(result, "agent_attempts"), "agent_attempts field missing from AgentExecutionResult"
+    assert isinstance(result.agent_attempts, int)
+    assert 1 <= result.agent_attempts <= 2, (
+        f"agent_attempts should be 1 or 2, got: {result.agent_attempts}"
+    )
+
+def test_agent_trace_step3_returns_all_actions():
+    """Step 3 (predict_recovery_probability) must evaluate all 5 candidate actions."""
+    result = recovery_agent.run_recovery_workflow("pay_multiaction_trace_001")
+    step3 = next(
+        (s for s in result.reasoning_trace if s.tool_name == "predict_recovery_probability"),
+        None
+    )
+    assert step3 is not None, "predict_recovery_probability step not found in reasoning trace"
+    assert step3.tool_output.get("mode") == "all_actions", (
+        f"Expected mode='all_actions', got: {step3.tool_output.get('mode')}"
+    )
+    candidates = step3.tool_output.get("all_candidate_actions", [])
+    assert len(candidates) == 5, (
+        f"Expected 5 candidate actions in Step 3, got {len(candidates)}: {[c['action'] for c in candidates]}"
+    )
+    expected_actions = {"RETRY", "PAYMENT_LINK", "REMINDER", "SCHEDULE_FOLLOWUP", "HUMAN_ESCALATION"}
+    actual_actions = {c["action"] for c in candidates}
+    assert actual_actions == expected_actions, (
+        f"Action set mismatch. Expected {expected_actions}, got {actual_actions}"
+    )

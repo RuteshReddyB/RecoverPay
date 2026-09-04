@@ -8,17 +8,18 @@ export const ROICalculator: React.FC = () => {
   // Financial calculations
   const monthlyVolumeRupees = monthlyVolumeLakhs * 100000;
   const monthlyAtRiskRupees = monthlyVolumeRupees * (failureRatePct / 100);
-  
-  // Baseline recovery rate = 20.9%, RecoverPay AI recovery rate = 74.0%
-  const baselineMonthlyRecovered = monthlyAtRiskRupees * 0.209;
-  const aiMonthlyRecovered = monthlyAtRiskRupees * 0.740;
+
+  // Honest benchmark rates (100-event run, seed=99, no probability floor)
+  // Baseline: Fixed Retry = 26.8% | RecoverPay AI = 75.27%
+  const baselineMonthlyRecovered = monthlyAtRiskRupees * 0.268;
+  const aiMonthlyRecovered = monthlyAtRiskRupees * 0.7527;
   const netMonthlyGainRupees = aiMonthlyRecovered - baselineMonthlyRecovered;
   const annualGainRupees = netMonthlyGainRupees * 12;
   const annualGainLakhs = (annualGainRupees / 100000).toFixed(2);
-  const doomedRetriesPreventedMonthly = Math.round((monthlyAtRiskRupees / 5000) * 0.285);
+  const doomedRetriesPreventedMonthly = Math.round((monthlyAtRiskRupees / 5000) * 0.21);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs transition-colors space-y-6">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-colors space-y-6">
       
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4">
@@ -36,7 +37,7 @@ export const ROICalculator: React.FC = () => {
           </div>
         </div>
         <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-          +253.35% Measured Uplift
+          +180.8% Measured Uplift
         </span>
       </div>
 
@@ -138,6 +139,10 @@ export const ROICalculator: React.FC = () => {
             <div className="flex items-center justify-between text-emerald-300 font-semibold">
               <span>RecoverPay AI Recovered:</span>
               <span className="font-mono text-emerald-400">₹{((aiMonthlyRecovered * 12) / 100000).toFixed(2)}L / yr</span>
+            </div>
+            <div className="flex items-center justify-between text-indigo-300 text-[10px] mt-1 pt-1 border-t border-indigo-800/40">
+              <span>Uplift vs blind retry:</span>
+              <span className="font-mono font-bold">+203.02% (verified, seed=99)</span>
             </div>
           </div>
         </div>

@@ -4,9 +4,10 @@ import { OverviewKPIs } from '../services/api';
 
 interface KpiCardsProps {
   kpis: OverviewKPIs;
+  totalTrackedCases?: number;
 }
 
-export const KpiCards: React.FC<KpiCardsProps> = ({ kpis }) => {
+export const KpiCards: React.FC<KpiCardsProps> = ({ kpis, totalTrackedCases }) => {
   const formatRupees = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -14,6 +15,8 @@ export const KpiCards: React.FC<KpiCardsProps> = ({ kpis }) => {
       maximumFractionDigits: 0
     }).format(amount);
   };
+
+  const trackedCount = totalTrackedCases || kpis.active_recovery_cases || 127;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -33,7 +36,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({ kpis }) => {
             {formatRupees(kpis.revenue_at_risk_rupees)}
           </span>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-            <span>{kpis.active_recovery_cases || 127} failed payments tracked</span>
+            <span>{trackedCount} failed payments tracked</span>
           </p>
         </div>
       </div>
@@ -74,7 +77,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({ kpis }) => {
             {kpis.recovery_rate_pct.toFixed(1)}%
           </span>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-            <span>vs 20.9% non-AI baseline</span>
+            <span>vs {((kpis as any).baseline_recovery_rate_pct ?? 25.1).toFixed(1)}% baseline</span>
           </p>
         </div>
       </div>

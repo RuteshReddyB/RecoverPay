@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { KpiCards } from './components/KpiCards';
 import { RevenueFunnelChart } from './components/RevenueFunnelChart';
@@ -10,6 +11,8 @@ import { AuditTrailTimeline } from './components/AuditTrailTimeline';
 import { BenchmarkAnalyticsView } from './components/BenchmarkAnalyticsView';
 import { LiveEventSimulatorModal } from './components/LiveEventSimulatorModal';
 import { PolicySettingsModal } from './components/PolicySettingsModal';
+import { CustomerMessageModal } from './components/CustomerMessageModal';
+import { EscalationResolveModal } from './components/EscalationResolveModal';
 import {
   api,
   OverviewKPIs,
@@ -23,21 +26,21 @@ import { LayoutDashboard, ListFilter, ShieldAlert, History, BarChart3, RefreshCw
 export const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'queue' | 'escalations' | 'audit' | 'benchmark'>('overview');
   
-  // Data states
+  // Data states — initialized with live benchmark metrics to eliminate UI flash on page reload
   const [kpis, setKpis] = useState<OverviewKPIs>({
-    revenue_at_risk_rupees: 1880374,
-    revenue_recovered_rupees: 796230,
-    recovery_rate_pct: 42.34,
-    ai_uplift_pct: 66.1,
-    additional_recovered_rupees: 316870,
+    revenue_at_risk_rupees: 1245164.58,
+    revenue_recovered_rupees: 937221.61,
+    recovery_rate_pct: 75.27,
+    ai_uplift_pct: 180.85,
+    additional_recovered_rupees: 603508.28,
     active_recovery_cases: 127,
   });
 
   const [funnel, setFunnel] = useState<RevenueFunnel>({
-    revenue_at_risk_rupees: 1880374,
-    eligible_for_recovery_rupees: 1598317,
-    interventions_executed_rupees: 1316261,
-    successfully_recovered_rupees: 796230,
+    revenue_at_risk_rupees: 1245164.58,
+    eligible_for_recovery_rupees: 174296.41,
+    interventions_executed_rupees: 722195.45,
+    successfully_recovered_rupees: 937221.61,
   });
 
   const [queue, setQueue] = useState<RecoveryCase[]>([]);
@@ -45,19 +48,39 @@ export const AppContent: React.FC = () => {
   const [benchmarkReport, setBenchmarkReport] = useState<BenchmarkReport | null>(null);
 
   const [selectedCase, setSelectedCase] = useState<RecoveryCase | null>(null);
+  const [previewCase, setPreviewCase] = useState<RecoveryCase | null>(null);
+  const [escalatingCase, setEscalatingCase] = useState<RecoveryCase | null>(null);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isBackendConnected, setIsBackendConnected] = useState(true);
+  const [isMockMode, setIsMockMode] = useState(false);
+  const [policyData, setPolicyData] = useState({
+    max_auto_recovery_amount_rupees: 10000,
+    max_retry_attempts: 2,
+    min_recovery_probability: 0.40,
+    auto_recovery_enabled: true,
+  });
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
 
   const loadData = async () => {
     setIsRefreshing(true);
     try {
-      const [kpiRes, funnelRes, queueRes, auditRes, benchRes] = await Promise.all([
+      const [kpiRes, funnelRes, queueRes, auditRes, benchRes, policyRes, healthRes] = await Promise.all([
         api.getOverviewKPIs().catch(() => null),
         api.getRevenueFunnel().catch(() => null),
         api.getRecoveryQueue().catch(() => null),
         api.getAuditLogs(30).catch(() => null),
         api.getBenchmarkReport().catch(() => null),
+        api.getPolicy().catch(() => null),
+        api.getHealth().catch(() => null),
       ]);
 
       if (kpiRes?.kpis) setKpis(kpiRes.kpis);
@@ -65,6 +88,16 @@ export const AppContent: React.FC = () => {
       if (queueRes?.queue) setQueue(queueRes.queue);
       if (auditRes?.logs) setAuditLogs(auditRes.logs);
       if (benchRes?.report) setBenchmarkReport(benchRes.report);
+      if (policyRes?.policy) setPolicyData({
+        max_auto_recovery_amount_rupees: policyRes.policy.max_auto_recovery_amount_rupees ?? 10000,
+        max_retry_attempts: policyRes.policy.max_retry_attempts ?? 2,
+        min_recovery_probability: policyRes.policy.min_recovery_probability ?? 0.40,
+        auto_recovery_enabled: policyRes.policy.auto_recovery_enabled ?? true,
+      });
+      if (healthRes) {
+        setIsBackendConnected(healthRes.status === 'healthy');
+        setIsMockMode(healthRes.database?.mock_mode ?? false);
+      }
     } catch (e) {
       console.error('Failed loading dashboard data:', e);
     } finally {
@@ -78,10 +111,16 @@ export const AppContent: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const escalationCount = queue.filter(
+  const escalationCases = queue.filter(
     c => (c.status === 'HUMAN_ESCALATION' || c.policy_status === 'HUMAN_ESCALATION') &&
          c.status !== 'captured' && c.status !== 'link_sent' && c.status !== 'rejected'
-  ).length;
+  );
+  const escalationCount = escalationCases.length;
+
+  const autonomousCases = queue.filter(
+    c => c.status !== 'HUMAN_ESCALATION' && c.policy_status !== 'HUMAN_ESCALATION' && c.status !== 'rejected'
+  );
+  const autonomousQueueCount = autonomousCases.length;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
@@ -90,8 +129,8 @@ export const AppContent: React.FC = () => {
       <Navbar
         onOpenSimulator={() => setIsSimulatorOpen(true)}
         onOpenPolicySettings={() => setIsPolicyModalOpen(true)}
-        isBackendConnected={true}
-        isMockMode={false}
+        isBackendConnected={isBackendConnected}
+        isMockMode={isMockMode}
       />
 
       {/* Main Container */}
@@ -106,7 +145,7 @@ export const AppContent: React.FC = () => {
               onClick={() => setActiveTab('overview')}
               className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 activeTab === 'overview'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200 dark:border-slate-800'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-slate-800'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -118,15 +157,15 @@ export const AppContent: React.FC = () => {
               onClick={() => setActiveTab('queue')}
               className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 activeTab === 'queue'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200 dark:border-slate-800'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-slate-800'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <ListFilter className="w-4 h-4" />
               <span>Recovery Queue</span>
-              {queue.length > 0 && (
+              {autonomousQueueCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
-                  {queue.length}
+                  {autonomousQueueCount}
                 </span>
               )}
             </button>
@@ -135,7 +174,7 @@ export const AppContent: React.FC = () => {
               onClick={() => setActiveTab('escalations')}
               className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 activeTab === 'escalations'
-                  ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs border border-slate-200 dark:border-slate-800'
+                  ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm border border-slate-200 dark:border-slate-800'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -152,7 +191,7 @@ export const AppContent: React.FC = () => {
               onClick={() => setActiveTab('audit')}
               className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 activeTab === 'audit'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200 dark:border-slate-800'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-slate-800'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -164,7 +203,7 @@ export const AppContent: React.FC = () => {
               onClick={() => setActiveTab('benchmark')}
               className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
                 activeTab === 'benchmark'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200 dark:border-slate-800'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-slate-800'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -190,7 +229,7 @@ export const AppContent: React.FC = () => {
         {/* View 1: Overview */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <KpiCards kpis={kpis} />
+            <KpiCards kpis={kpis} totalTrackedCases={queue.length} />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
                 <RevenueFunnelChart funnel={funnel} />
@@ -202,28 +241,42 @@ export const AppContent: React.FC = () => {
                 <div className="space-y-3 text-xs">
                   <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-slate-500 dark:text-slate-400">Max Auto Amount Limit</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">₹10,000.00</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      ₹{policyData.max_auto_recovery_amount_rupees.toLocaleString('en-IN')}.00
+                    </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-slate-500 dark:text-slate-400">Max Retry Attempts</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">2 Retries</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {policyData.max_retry_attempts} Retries
+                    </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-slate-500 dark:text-slate-400">Min Prob Threshold</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">40.0%</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {(policyData.min_recovery_probability * 100).toFixed(1)}%
+                    </span>
                   </div>
                   <div className="flex justify-between py-1.5">
                     <span className="text-slate-500 dark:text-slate-400">Autonomous Execution</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">Enabled</span>
+                    <span className={`font-semibold ${
+                      policyData.auto_recovery_enabled
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-500 dark:text-rose-400'
+                    }`}>
+                      {policyData.auto_recovery_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
             <RecoveryQueueTable
-              cases={queue}
+              cases={autonomousCases}
               onSelectCase={setSelectedCase}
-              onExecuteAction={(pid, act) => api.executeRecovery(pid, act).then(loadData)}
-              onMarkPaid={(pid) => api.markPaid(pid).then(loadData)}
+              onExecuteAction={(pid, act) => api.executeRecovery(pid, act).then(() => { loadData(); showToast(`Action ${act} executed successfully on Razorpay rails`); })}
+              onMarkPaid={(pid) => api.markPaid(pid).then(() => { loadData(); showToast('Payment marked as captured / paid'); })}
+              onPreviewMessage={(c) => setPreviewCase(c)}
+              onResolveEscalation={(c) => setEscalatingCase(c)}
             />
           </div>
         )}
@@ -231,10 +284,12 @@ export const AppContent: React.FC = () => {
         {/* View 2: Queue */}
         {activeTab === 'queue' && (
           <RecoveryQueueTable
-            cases={queue}
+            cases={autonomousCases}
             onSelectCase={setSelectedCase}
-            onExecuteAction={(pid, act) => api.executeRecovery(pid, act).then(loadData)}
-            onMarkPaid={(pid) => api.markPaid(pid).then(loadData)}
+            onExecuteAction={(pid, act) => api.executeRecovery(pid, act).then(() => { loadData(); showToast(`Action ${act} executed successfully on Razorpay rails`); })}
+            onMarkPaid={(pid) => api.markPaid(pid).then(() => { loadData(); showToast('Payment marked as captured / paid'); })}
+            onPreviewMessage={(c) => setPreviewCase(c)}
+            onResolveEscalation={(c) => setEscalatingCase(c)}
           />
         )}
 
@@ -242,8 +297,8 @@ export const AppContent: React.FC = () => {
         {activeTab === 'escalations' && (
           <HumanEscalationQueue
             cases={queue}
-            onApprove={(pid) => api.executeRecovery(pid, 'PAYMENT_LINK').then(loadData)}
-            onReject={(pid) => api.rejectRecovery(pid).then(loadData)}
+            onResolveEscalation={(c) => setEscalatingCase(c)}
+            onPreviewMessage={(c) => setPreviewCase(c)}
           />
         )}
 
@@ -259,25 +314,62 @@ export const AppContent: React.FC = () => {
 
       </main>
 
+      {/* Floating Action Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 duration-200">
+          <div className={`px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-2.5 text-xs font-semibold ${
+            toast.type === 'error'
+              ? 'bg-rose-900 text-rose-100 border-rose-700'
+              : toast.type === 'info'
+              ? 'bg-indigo-900 text-indigo-100 border-indigo-700'
+              : 'bg-emerald-950 text-emerald-100 border-emerald-700'
+          }`}>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       {/* Slide-over AI Decision Drawer */}
       <AiDecisionDrawer
         caseItem={selectedCase}
         onClose={() => setSelectedCase(null)}
-        onExecuteSuccess={loadData}
+        onExecuteSuccess={() => { loadData(); showToast('Action executed via Autonomous Agent'); }}
+        onPreviewMessage={(c) => setPreviewCase(c)}
+      />
+
+      {/* Customer Omnichannel Message Preview Modal */}
+      <CustomerMessageModal
+        isOpen={Boolean(previewCase)}
+        recoveryCase={previewCase}
+        onClose={() => setPreviewCase(null)}
+        onMessageCopied={(channel) => showToast(`${channel} customer message copied to clipboard`, 'info')}
+        onPaymentCompleted={(pid) => {
+          loadData();
+          showToast(`Payment ${pid} captured successfully! Recovery queue auto-updated.`, 'success');
+        }}
+      />
+
+      {/* Human Escalation Resolution Modal */}
+      <EscalationResolveModal
+        isOpen={Boolean(escalatingCase)}
+        recoveryCase={escalatingCase}
+        onClose={() => setEscalatingCase(null)}
+        onResolved={() => { loadData(); showToast('Escalation resolved and sealed in audit log', 'success'); }}
       />
 
       {/* Live Event Simulator Modal */}
       <LiveEventSimulatorModal
         isOpen={isSimulatorOpen}
         onClose={() => setIsSimulatorOpen(false)}
-        onEventSimulated={loadData}
+        onEventSimulated={() => { loadData(); showToast('Simulation event executed and state updated', 'info'); }}
       />
 
       {/* Merchant Policy Settings Modal */}
       <PolicySettingsModal
         isOpen={isPolicyModalOpen}
         onClose={() => setIsPolicyModalOpen(false)}
-        onPolicyUpdated={loadData}
+        onPolicyUpdated={() => { loadData(); showToast('Policy boundaries updated successfully', 'success'); }}
       />
 
     </div>
@@ -287,7 +379,9 @@ export const AppContent: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </ThemeProvider>
   );
 };

@@ -1,18 +1,23 @@
 import React from 'react';
-import { CheckCircle, XCircle, ShieldAlert } from 'lucide-react';
+import { CheckCircle, ShieldAlert, UserCheck, Lock } from 'lucide-react';
 import { RecoveryCase } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface HumanEscalationQueueProps {
   cases: RecoveryCase[];
-  onApprove: (paymentId: string) => void;
-  onReject: (paymentId: string) => void;
+  onResolveEscalation?: (caseItem: RecoveryCase) => void;
+  onPreviewMessage?: (caseItem: RecoveryCase) => void;
+  onApprove?: (paymentId: string) => void;
+  onReject?: (paymentId: string) => void;
 }
 
 export const HumanEscalationQueue: React.FC<HumanEscalationQueueProps> = ({
   cases,
+  onResolveEscalation,
   onApprove,
   onReject,
 }) => {
+  const { isAuditor } = useAuth();
   const escalatedCases = cases.filter(
     c => (c.status === 'HUMAN_ESCALATION' || c.policy_status === 'HUMAN_ESCALATION') &&
          c.status !== 'captured' && c.status !== 'link_sent' && c.status !== 'rejected'
@@ -51,7 +56,7 @@ export const HumanEscalationQueue: React.FC<HumanEscalationQueueProps> = ({
                   <th className="py-3 px-4">Amount</th>
                   <th className="py-3 px-4">Escalation Reason</th>
                   <th className="py-3 px-4">AI Recommendation</th>
-                  <th className="py-3 px-4 text-right">Merchant Action</th>
+                  <th className="py-3 px-4 text-right">Merchant Ops Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -80,19 +85,30 @@ export const HumanEscalationQueue: React.FC<HumanEscalationQueueProps> = ({
                       {item.recommended_action} ({item.probability_pct}%)
                     </td>
 
-                    <td className="py-3 px-4 text-right space-x-2">
-                      <button
-                        onClick={() => onApprove(item.payment_id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-xs"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" /> Approve
-                      </button>
-                      <button
-                        onClick={() => onReject(item.payment_id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium transition-colors shadow-xs"
-                      >
-                        <XCircle className="w-3.5 h-3.5" /> Reject
-                      </button>
+                    <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      {onResolveEscalation ? (
+                        <button
+                          onClick={() => onResolveEscalation(item)}
+                          disabled={isAuditor}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm ${
+                            isAuditor
+                              ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                              : 'bg-amber-500 hover:bg-amber-600 text-white'
+                          }`}
+                          title={isAuditor ? 'Auditor Persona: Read-Only Compliance Mode' : 'Resolve Human Escalation with manual override'}
+                        >
+                          {isAuditor ? <Lock className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                          <span>{isAuditor ? 'Auditor (Read-Only)' : 'Resolve Case'}</span>
+                        </button>
+                      ) : onApprove ? (
+                        <button
+                          onClick={() => onApprove(item.payment_id)}
+                          disabled={isAuditor}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" /> Approve
+                        </button>
+                      ) : null}
                     </td>
 
                   </tr>
