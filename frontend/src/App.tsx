@@ -9,6 +9,7 @@ import { HumanEscalationQueue } from './components/HumanEscalationQueue';
 import { AuditTrailTimeline } from './components/AuditTrailTimeline';
 import { BenchmarkAnalyticsView } from './components/BenchmarkAnalyticsView';
 import { LiveEventSimulatorModal } from './components/LiveEventSimulatorModal';
+import { PolicySettingsModal } from './components/PolicySettingsModal';
 import {
   api,
   OverviewKPIs,
@@ -45,6 +46,7 @@ export const AppContent: React.FC = () => {
 
   const [selectedCase, setSelectedCase] = useState<RecoveryCase | null>(null);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadData = async () => {
@@ -76,12 +78,18 @@ export const AppContent: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const escalationCount = queue.filter(
+    c => (c.status === 'HUMAN_ESCALATION' || c.policy_status === 'HUMAN_ESCALATION') &&
+         c.status !== 'captured' && c.status !== 'link_sent' && c.status !== 'rejected'
+  ).length;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
       {/* Top Navbar */}
       <Navbar
         onOpenSimulator={() => setIsSimulatorOpen(true)}
+        onOpenPolicySettings={() => setIsPolicyModalOpen(true)}
         isBackendConnected={true}
         isMockMode={false}
       />
@@ -133,6 +141,11 @@ export const AppContent: React.FC = () => {
             >
               <ShieldAlert className="w-4 h-4" />
               <span>Human Escalations</span>
+              {escalationCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-bold">
+                  {escalationCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -210,6 +223,7 @@ export const AppContent: React.FC = () => {
               cases={queue}
               onSelectCase={setSelectedCase}
               onExecuteAction={(pid, act) => api.executeRecovery(pid, act).then(loadData)}
+              onMarkPaid={(pid) => api.markPaid(pid).then(loadData)}
             />
           </div>
         )}
@@ -220,6 +234,7 @@ export const AppContent: React.FC = () => {
             cases={queue}
             onSelectCase={setSelectedCase}
             onExecuteAction={(pid, act) => api.executeRecovery(pid, act).then(loadData)}
+            onMarkPaid={(pid) => api.markPaid(pid).then(loadData)}
           />
         )}
 
@@ -228,7 +243,7 @@ export const AppContent: React.FC = () => {
           <HumanEscalationQueue
             cases={queue}
             onApprove={(pid) => api.executeRecovery(pid, 'PAYMENT_LINK').then(loadData)}
-            onReject={(pid) => loadData()}
+            onReject={(pid) => api.rejectRecovery(pid).then(loadData)}
           />
         )}
 
@@ -256,6 +271,13 @@ export const AppContent: React.FC = () => {
         isOpen={isSimulatorOpen}
         onClose={() => setIsSimulatorOpen(false)}
         onEventSimulated={loadData}
+      />
+
+      {/* Merchant Policy Settings Modal */}
+      <PolicySettingsModal
+        isOpen={isPolicyModalOpen}
+        onClose={() => setIsPolicyModalOpen(false)}
+        onPolicyUpdated={loadData}
       />
 
     </div>

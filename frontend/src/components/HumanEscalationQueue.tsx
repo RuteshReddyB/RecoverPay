@@ -13,7 +13,10 @@ export const HumanEscalationQueue: React.FC<HumanEscalationQueueProps> = ({
   onApprove,
   onReject,
 }) => {
-  const escalatedCases = cases.filter(c => c.status === 'HUMAN_ESCALATION' || c.amount_rupees > 10000);
+  const escalatedCases = cases.filter(
+    c => (c.status === 'HUMAN_ESCALATION' || c.policy_status === 'HUMAN_ESCALATION') &&
+         c.status !== 'captured' && c.status !== 'link_sent' && c.status !== 'rejected'
+  );
 
   const formatRupees = (val: number) => `₹${val.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
@@ -26,7 +29,7 @@ export const HumanEscalationQueue: React.FC<HumanEscalationQueueProps> = ({
         <div className="text-xs sm:text-sm">
           <span className="font-bold">Policy Safety Escalation Workspace</span>
           <p className="mt-0.5 opacity-90">
-            These payment failure events breached merchant policy boundaries (e.g. transaction amount &gt; ₹10,000 threshold or retry limits reached). Merchant ops approval is required before dispatching Razorpay recovery links.
+            These payment failure events breached merchant policy boundaries (e.g. transaction amount &gt; threshold or retry limits reached). Merchant ops approval is required before dispatching Razorpay recovery links.
           </p>
         </div>
       </div>
@@ -69,7 +72,7 @@ export const HumanEscalationQueue: React.FC<HumanEscalationQueueProps> = ({
 
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-medium">
-                        Amount &gt; ₹10,000 threshold
+                        {item.policy_reason || "Amount > auto-recovery threshold"}
                       </span>
                     </td>
 

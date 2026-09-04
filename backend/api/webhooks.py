@@ -2,9 +2,10 @@ import json
 from fastapi import APIRouter, Request, Header, HTTPException
 from backend.config import settings
 from backend.utils.security import verify_razorpay_signature
-from backend.services.db_service import AuditLogRepository, PaymentRepository, CustomerRepository
+from backend.services.db_service import AuditLogRepository, PaymentRepository, CustomerRepository, RecoveryAttemptRepository
 from backend.schemas.audit import AuditLogCreate
 from backend.schemas.payment import PaymentCreate
+from backend.schemas.recovery import RecoveryAttemptCreate
 from backend.services.decision_engine import decision_engine
 from backend.services.razorpay_service import razorpay_service
 from backend.utils.logger import logger
@@ -80,7 +81,65 @@ async def handle_razorpay_webhook(
         payment_dict=payment.model_dump()
     )
 
-    # 4. Log Immutable Audit Record
+    execution_res = {}
+    execution_status = "PENDING"
+
+    # 4. If policy APPROVES, execute autonomously right now
+    if decision.policy_status == "APPROVED":
+        try:
+            if decision.recommended_action == "PAYMENT_LINK":
+                execution_res = razorpay_service.create_payment_link(
+                    amount_paisa=payment.amount_paisa,
+                    customer_name=getattr(customer, "name", "Customer"),
+                    customer_email=getattr(customer, "email", "customer@example.com"),
+                    customer_phone=getattr(customer, "phone", "+919876543210")
+                )
+                PaymentRepository.update_payment_status(payment.id, "link_sent")
+                execution_status = "EXECUTED_PAYMENT_LINK"
+
+            elif decision.recommended_action == "RETRY":
+                execution_res = razorpay_service.retry_payment(
+                    razorpay_payment_id=payment.razorpay_payment_id
+                )
+                execution_status = "EXECUTED_RETRY"
+
+            elif decision.recommended_action in ["REMINDER", "SCHEDULE_FOLLOWUP"]:
+                execution_res = razorpay_service.send_payment_reminder(
+                    customer_email=getattr(customer, "email", "customer@example.com"),
+                    customer_phone=getattr(customer, "phone", "+919876543210"),
+                    payment_link_url="https://rzp.io/i/webhook_recovery"
+                )
+                execution_status = "EXECUTED_REMINDER"
+
+            # Record recovery attempt
+            attempt_create = RecoveryAttemptCreate(
+                payment_id=payment.id,
+                customer_id=payment.customer_id,
+                action=decision.recommended_action,
+                predicted_probability=decision.probability,
+                expected_recovery_paisa=decision.expected_recovery_paisa,
+                policy_status=decision.policy_status,
+                policy_reason=decision.policy_reason
+            )
+            RecoveryAttemptRepository.create_attempt(attempt_create)
+            logger.info(
+                f"[WEBHOOK AUTO-EXECUTE] Action '{decision.recommended_action}' dispatched for payment {payment.id}. "
+                f"Status: {execution_status}"
+            )
+
+        except Exception as e:
+            logger.error(f"[WEBHOOK EXECUTION ERROR] Failed to execute '{decision.recommended_action}': {e}")
+            execution_status = "EXECUTION_FAILED"
+            execution_res = {"error": str(e)}
+
+    elif decision.policy_status == "HUMAN_ESCALATION":
+        execution_status = "ESCALATED_TO_HUMAN"
+        logger.info(f"[WEBHOOK] Payment {payment.id} requires human review: {decision.policy_reason}")
+    else:
+        execution_status = "BLOCKED_BY_POLICY"
+        logger.info(f"[WEBHOOK] Payment {payment.id} blocked by policy: {decision.policy_reason}")
+
+    # 5. Log Immutable Audit Record
     AuditLogRepository.append_log(AuditLogCreate(
         event_id=event_id,
         entity_type="payment",
@@ -92,7 +151,9 @@ async def handle_razorpay_webhook(
             "amount_paisa": amount_paisa,
             "failure_reason": failure_reason,
             "recommended_action": decision.recommended_action,
-            "policy_status": decision.policy_status
+            "policy_status": decision.policy_status,
+            "execution_status": execution_status,
+            "execution_result": execution_res
         }
     ))
 
@@ -102,5 +163,7 @@ async def handle_razorpay_webhook(
         "payment_id": payment.id,
         "recommended_action": decision.recommended_action,
         "policy_status": decision.policy_status,
-        "expected_recovery_rupees": decision.expected_recovery_rupees
+        "execution_status": execution_status,
+        "expected_recovery_rupees": decision.expected_recovery_rupees,
+        "execution_result": execution_res
     }

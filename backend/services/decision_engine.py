@@ -23,19 +23,30 @@ class DecisionEngine:
     def select_best_recovery_action(
         self,
         customer_dict: Dict[str, Any],
-        payment_dict: Dict[str, Any]
+        payment_dict: Dict[str, Any],
+        exclude_actions: Optional[List[str]] = None
     ) -> DecisionOutcome:
         """
         Evaluate candidate recovery actions, apply Policy Engine safety checks,
         and select the action that maximizes expected recovery value.
+
+        Args:
+            customer_dict: Customer profile data (LTV, history, success rate).
+            payment_dict: Payment failure data (amount, failure reason, retry count).
+            exclude_actions: Optional list of action names to skip (used by the
+                             agent retry loop to exclude already-attempted actions).
         """
         amount_paisa = payment_dict.get("amount_paisa", 499900)
         retry_count = payment_dict.get("retry_count", 0)
         contact_attempts = payment_dict.get("contact_attempts", 0)
+        excluded = set(exclude_actions or [])
 
         # 1. Get ML probabilities for all candidate actions
         ml_eval = self.predictor.evaluate_all_actions(customer_dict, payment_dict)
         candidate_actions = ml_eval.get("all_actions", [])
+
+        # Filter out explicitly excluded actions (agent retry loop)
+        candidate_actions = [c for c in candidate_actions if c["action"] not in excluded]
 
         evaluated_options = []
         approved_options = []

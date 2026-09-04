@@ -10,6 +10,8 @@ from backend.api.recovery import router as recovery_router
 from backend.api.webhooks import router as webhook_router
 from backend.api.agent import router as agent_router
 from backend.api.analytics import router as analytics_router
+from backend.api.policy import router as policy_router
+from backend.api.export import router as export_router
 
 app = FastAPI(
     title="RecoverPay AI - Autonomous Revenue Recovery API",
@@ -22,6 +24,8 @@ app.include_router(recovery_router)
 app.include_router(webhook_router)
 app.include_router(agent_router)
 app.include_router(analytics_router)
+app.include_router(policy_router)
+app.include_router(export_router)
 
 # Enable CORS for React frontend dashboard
 app.add_middleware(

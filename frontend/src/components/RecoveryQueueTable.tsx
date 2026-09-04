@@ -6,12 +6,14 @@ interface RecoveryQueueTableProps {
   cases: RecoveryCase[];
   onSelectCase: (caseItem: RecoveryCase) => void;
   onExecuteAction: (paymentId: string, action: string) => void;
+  onMarkPaid?: (paymentId: string) => void;
 }
 
 export const RecoveryQueueTable: React.FC<RecoveryQueueTableProps> = ({
   cases,
   onSelectCase,
   onExecuteAction,
+  onMarkPaid,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -44,6 +46,12 @@ export const RecoveryQueueTable: React.FC<RecoveryQueueTableProps> = ({
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
             <XCircle className="w-3 h-3" /> Blocked
+          </span>
+        );
+      case 'LINK_SENT':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+            <Clock className="w-3 h-3" /> Link Sent
           </span>
         );
       default:
@@ -142,7 +150,17 @@ export const RecoveryQueueTable: React.FC<RecoveryQueueTableProps> = ({
                   {getStatusBadge(item.status)}
                 </td>
 
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-right space-x-2">
+                  {item.status === 'LINK_SENT' && onMarkPaid && (
+                    <button
+                      onClick={() => onMarkPaid(item.payment_id)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-xs"
+                      title="Simulate customer completing payment link"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Simulate Paid</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => onSelectCase(item)}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 text-xs font-medium transition-colors border border-indigo-200 dark:border-indigo-800"

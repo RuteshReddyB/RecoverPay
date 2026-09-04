@@ -12,6 +12,9 @@ class PaymentBase(BaseModel):
     payment_method: str = Field(default="upi", description="Payment method used")
     failure_reason: str = Field(default="bank_timeout", description="Failure reason category")
     failure_code: Optional[str] = Field(default="BAD_REQUEST_ERROR")
+    policy_status: Optional[str] = Field(default=None)
+    recommended_action: Optional[str] = Field(default=None)
+    policy_reason: Optional[str] = Field(default=None)
 
 class PaymentCreate(PaymentBase):
     pass

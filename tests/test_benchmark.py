@@ -7,9 +7,18 @@ client = TestClient(app)
 def test_batch_benchmark_evaluator():
     report = benchmark_evaluator.run_batch_benchmark(num_events=100)
     assert report["summary"]["events_evaluated"] == 100
+    assert report["summary"]["reproducible"] is True
     assert "financial_metrics" in report
-    assert "revenueguard_ai" in report["financial_metrics"]
-    assert report["financial_metrics"]["revenueguard_ai"]["recovered_rupees"] >= 0
+    # Verify all three strategy keys are present
+    assert "baseline" in report["financial_metrics"]
+    assert "rule_based" in report["financial_metrics"]       # new: rule-based comparison
+    assert "recoverpay_ai" in report["financial_metrics"]   # renamed from revenueguard_ai
+    assert report["financial_metrics"]["recoverpay_ai"]["recovered_rupees"] >= 0
+    # AI should outperform naive baseline
+    assert (
+        report["financial_metrics"]["recoverpay_ai"]["recovered_paisa"]
+        >= report["financial_metrics"]["baseline"]["recovered_paisa"]
+    )
     assert "operational_metrics" in report
     assert "revenue_funnel" in report
 

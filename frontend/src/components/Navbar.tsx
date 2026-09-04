@@ -1,15 +1,17 @@
 import React from 'react';
-import { ShieldCheck, Sun, Moon, Play, Database } from 'lucide-react';
+import { ShieldCheck, Sun, Moon, Play, Database, Sliders } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 interface NavbarProps {
   onOpenSimulator: () => void;
+  onOpenPolicySettings: () => void;
   isBackendConnected: boolean;
   isMockMode: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenSimulator,
+  onOpenPolicySettings,
   isBackendConnected,
   isMockMode,
 }) => {
@@ -50,6 +52,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isMockMode ? 'Mock Firestore' : 'Firebase Firestore Live'}
             </span>
           </div>
+
+          {/* Policy Settings Button */}
+          <button
+            onClick={onOpenPolicySettings}
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 flex items-center space-x-1.5 text-xs font-semibold"
+            title="Merchant Policy Rules"
+          >
+            <Sliders className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden sm:inline">Policy Engine</span>
+          </button>
 
           {/* Theme Toggle Button */}
           <button

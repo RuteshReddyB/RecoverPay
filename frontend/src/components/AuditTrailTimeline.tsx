@@ -1,6 +1,6 @@
 import React from 'react';
-import { History, ShieldCheck, Cpu, Webhook, Lock } from 'lucide-react';
-import { AuditLogItem } from '../services/api';
+import { History, ShieldCheck, Cpu, Webhook, Lock, Download } from 'lucide-react';
+import { AuditLogItem, api } from '../services/api';
 
 interface AuditTrailTimelineProps {
   logs: AuditLogItem[];
@@ -38,7 +38,7 @@ export const AuditTrailTimeline: React.FC<AuditTrailTimelineProps> = ({ logs }) 
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 transition-colors">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white font-outfit flex items-center gap-2">
             <History className="w-5 h-5 text-indigo-500" />
@@ -48,6 +48,14 @@ export const AuditTrailTimeline: React.FC<AuditTrailTimelineProps> = ({ logs }) 
             Append-only decision log with cryptographic SHA-256 event checksum verification
           </p>
         </div>
+        <a
+          href={api.getAuditLogCsvUrl()}
+          download="recoverpay_audit_trail.csv"
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium border border-slate-200 dark:border-slate-700 transition-colors"
+        >
+          <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+          <span>Export Audit Log (CSV)</span>
+        </a>
       </div>
 
       <div className="relative border-l-2 border-slate-200 dark:border-slate-800 ml-3 space-y-6 py-2">

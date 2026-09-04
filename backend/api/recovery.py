@@ -11,6 +11,7 @@ from backend.services.db_service import (
 )
 from backend.schemas.recovery import RecoveryAttemptCreate
 from backend.schemas.audit import AuditLogCreate
+from backend.db.firebase import get_db
 import uuid
 
 router = APIRouter(prefix="/api/recovery", tags=["Recovery"])
@@ -158,6 +159,50 @@ def execute_recovery(request: ExecuteRequest):
         "execution_result": execution_res
     }
 
+@router.post("/mark-paid")
+def mark_payment_as_paid(request: ExecuteRequest):
+    payment = PaymentRepository.get_payment(request.payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    PaymentRepository.update_payment_status(payment.id, "captured")
+    CustomerRepository.update_metrics(payment.customer_id, is_success=True, amount_paisa=payment.amount_paisa)
+    
+    AuditLogRepository.append_log(AuditLogCreate(
+        event_id=f"evt_paid_{uuid.uuid4().hex[:8]}",
+        entity_type="payment",
+        entity_id=payment.id,
+        actor="WEBHOOK",
+        action="PAYMENT_LINK_PAID_SUCCESSFULLY",
+        details={
+            "payment_id": payment.id,
+            "status": "captured",
+            "amount_rupees": payment.amount_rupees
+        }
+    ))
+    return {"status": "success", "message": "Payment marked as captured/paid successfully"}
+
+@router.post("/reject")
+def reject_human_escalation(request: ExecuteRequest):
+    payment = PaymentRepository.get_payment(request.payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    PaymentRepository.update_payment_status(payment.id, "rejected")
+    
+    AuditLogRepository.append_log(AuditLogCreate(
+        event_id=f"evt_reject_{uuid.uuid4().hex[:8]}",
+        entity_type="payment",
+        entity_id=payment.id,
+        actor="HUMAN_OVERRIDE",
+        action="HUMAN_ESCALATION_REJECTED",
+        details={
+            "payment_id": payment.id,
+            "status": "rejected"
+        }
+    ))
+    return {"status": "success", "message": "Escalation rejected successfully"}
+
 @router.get("/queue")
 def get_recovery_queue():
     at_risk = PaymentRepository.get_at_risk_payments()
@@ -165,9 +210,33 @@ def get_recovery_queue():
     escalations = []
 
     for pmt in at_risk:
+        if pmt.status in ["captured", "rejected"]:
+            continue
+            
         c = CustomerRepository.get_customer(pmt.customer_id)
         c_dict = c.model_dump() if c else {}
-        decision = decision_engine.select_best_recovery_action(c_dict, pmt.model_dump())
+        
+        # Use frozen policy decision if already saved on payment document
+        if getattr(pmt, 'policy_status', None) and getattr(pmt, 'recommended_action', None):
+            rec_action = pmt.recommended_action
+            pol_status = pmt.policy_status
+            pol_reason = getattr(pmt, 'policy_reason', 'Evaluated at failure ingestion')
+            prob_pct = 85.0
+            exp_rupees = pmt.amount_rupees * 0.85
+        else:
+            decision = decision_engine.select_best_recovery_action(c_dict, pmt.model_dump())
+            rec_action = decision.recommended_action
+            pol_status = decision.policy_status
+            pol_reason = decision.policy_reason
+            prob_pct = decision.probability_pct
+            exp_rupees = decision.expected_recovery_rupees
+            # Save decision on payment so future policy setting updates don't alter past records
+            db, _ = get_db()
+            db.collection("payments").document(pmt.id).update({
+                "policy_status": pol_status,
+                "recommended_action": rec_action,
+                "policy_reason": pol_reason
+            })
         
         item = {
             "payment_id": pmt.id,
@@ -177,17 +246,17 @@ def get_recovery_queue():
             "amount_paisa": pmt.amount_paisa,
             "amount_rupees": pmt.amount_rupees,
             "failure_reason": pmt.failure_reason,
-            "recommended_action": decision.recommended_action,
-            "probability_pct": decision.probability_pct,
-            "expected_recovery_rupees": decision.expected_recovery_rupees,
-            "policy_status": "LINK_SENT" if pmt.status == "link_sent" else decision.policy_status,
-            "policy_reason": decision.policy_reason,
-            "status": "LINK_SENT" if pmt.status == "link_sent" else ("READY" if decision.policy_status == "APPROVED" else decision.policy_status)
+            "recommended_action": rec_action,
+            "probability_pct": prob_pct,
+            "expected_recovery_rupees": exp_rupees,
+            "policy_status": "LINK_SENT" if pmt.status == "link_sent" else pol_status,
+            "policy_reason": pol_reason,
+            "status": "LINK_SENT" if pmt.status == "link_sent" else ("READY" if pol_status == "APPROVED" else pol_status)
         }
 
-        if decision.policy_status == "HUMAN_ESCALATION":
+        if pol_status == "HUMAN_ESCALATION" and pmt.status not in ["link_sent", "captured", "rejected"]:
             escalations.append(item)
-        else:
+        elif pmt.status != "rejected":
             queue_items.append(item)
 
     return {

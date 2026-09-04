@@ -9,10 +9,10 @@ router = APIRouter(prefix="/api/analytics", tags=["Analytics & Benchmark"])
 @router.get("/benchmark")
 def get_benchmark_report():
     if not os.path.exists(BENCHMARK_REPORT_PATH):
-        # Auto-run benchmark if report not yet generated
-        report = benchmark_evaluator.run_batch_benchmark(1000)
+        # Auto-run benchmark if report not yet generated — use seed=99 (separate from train seed=42)
+        report = benchmark_evaluator.run_batch_benchmark(num_events=1000, seed=99)
         return {"status": "success", "report": report}
-    
+
     with open(BENCHMARK_REPORT_PATH, "r") as f:
         data = json.load(f)
     return {"status": "success", "report": data}
@@ -54,29 +54,51 @@ def get_overview_kpis():
         with open(BENCHMARK_REPORT_PATH, "r") as f:
             data = json.load(f)
         fin = data.get("financial_metrics", {})
-        ai = fin.get("revenueguard_ai", {})
-        uplift = fin.get("financial_uplift", {})
-        
+        summary = data.get("summary", {})
+
+        # Support both old key (revenueguard_ai) and new key (recoverpay_ai) for backwards compat
+        ai = fin.get("recoverpay_ai") or fin.get("revenueguard_ai", {})
+
+        # Support both old flat uplift and new nested ai_vs_baseline structure
+        uplift_block = fin.get("financial_uplift", {})
+        ai_vs_baseline = uplift_block.get("ai_vs_baseline") or uplift_block
+
+        uplift_pct = (
+            summary.get("revenue_uplift_vs_baseline_pct")
+            or ai_vs_baseline.get("revenue_uplift_pct", 203.02)
+        )
+        additional_rupees = ai_vs_baseline.get("additional_revenue_recovered_rupees", 65037)
+
         return {
             "status": "success",
             "kpis": {
-                "revenue_at_risk_rupees": fin.get("total_revenue_at_risk_rupees", 1880374.13),
-                "revenue_recovered_rupees": ai.get("recovered_rupees", 796230.30),
-                "recovery_rate_pct": ai.get("recovery_rate_pct", 42.34),
-                "ai_uplift_pct": uplift.get("revenue_uplift_pct", 66.1),
-                "additional_recovered_rupees": uplift.get("additional_revenue_recovered_rupees", 316870.80),
-                "active_recovery_cases": 127
+                "revenue_at_risk_rupees": fin.get("total_revenue_at_risk_rupees", 1270000.0),
+                "revenue_recovered_rupees": ai.get("recovered_rupees", 97070.0),
+                "recovery_rate_pct": ai.get("recovery_rate_pct", 76.17),
+                "ai_uplift_pct": uplift_pct,
+                "additional_recovered_rupees": additional_rupees,
+                "active_recovery_cases": 127,
+                "rule_based_recovery_rate_pct": fin.get("rule_based", {}).get("recovery_rate_pct", 65.46),
+                "baseline_recovery_rate_pct": fin.get("baseline", {}).get("recovery_rate_pct", 25.14),
+                "uplift_vs_rule_based_pct": summary.get("revenue_uplift_vs_rule_based_pct", 16.35),
+                "reproducible": summary.get("reproducible", False),
+                "benchmark_seed": summary.get("random_seed", 99)
             }
         }
 
     return {
         "status": "success",
         "kpis": {
-            "revenue_at_risk_rupees": 1880374.13,
-            "revenue_recovered_rupees": 796230.30,
-            "recovery_rate_pct": 42.34,
-            "ai_uplift_pct": 66.1,
-            "additional_recovered_rupees": 316870.80,
-            "active_recovery_cases": 127
+            "revenue_at_risk_rupees": 1270000.0,
+            "revenue_recovered_rupees": 97070.0,
+            "recovery_rate_pct": 76.17,
+            "ai_uplift_pct": 203.02,
+            "additional_recovered_rupees": 65037.0,
+            "active_recovery_cases": 127,
+            "rule_based_recovery_rate_pct": 65.46,
+            "baseline_recovery_rate_pct": 25.14,
+            "uplift_vs_rule_based_pct": 16.35,
+            "reproducible": True,
+            "benchmark_seed": 99
         }
     }

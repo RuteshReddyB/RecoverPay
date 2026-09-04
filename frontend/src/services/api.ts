@@ -37,7 +37,9 @@ export interface RecoveryCase {
   amount_paisa: number;
   failure_reason: string;
   payment_method: string;
-  status: 'PENDING' | 'READY' | 'EXECUTED' | 'BLOCKED' | 'HUMAN_ESCALATION';
+  status: string;
+  policy_status?: string;
+  policy_reason?: string;
   recommended_action: string;
   probability_pct: number;
   expected_recovery_rupees: number;
@@ -82,7 +84,11 @@ export interface BenchmarkReport {
     events_evaluated: number;
     timestamp: string;
     winning_strategy: string;
-    revenue_uplift_pct: number;
+    random_seed: number;
+    reproducible: boolean;
+    methodology: string;
+    revenue_uplift_vs_baseline_pct: number;
+    revenue_uplift_vs_rule_based_pct: number;
   };
   financial_metrics: {
     total_revenue_at_risk_rupees: number;
@@ -92,15 +98,28 @@ export interface BenchmarkReport {
       recovery_rate_pct: number;
       avg_recovery_per_event_rupees: number;
     };
-    revenueguard_ai: {
+    rule_based: {
+      strategy_name: string;
+      recovered_rupees: number;
+      recovery_rate_pct: number;
+      avg_recovery_per_event_rupees: number;
+      action_breakdown: Record<string, number>;
+    };
+    recoverpay_ai: {
       strategy_name: string;
       recovered_rupees: number;
       recovery_rate_pct: number;
       avg_recovery_per_event_rupees: number;
     };
     financial_uplift: {
-      additional_revenue_recovered_rupees: number;
-      revenue_uplift_pct: number;
+      ai_vs_baseline: {
+        additional_revenue_recovered_rupees: number;
+        revenue_uplift_pct: number;
+      };
+      ai_vs_rule_based: {
+        additional_revenue_recovered_rupees: number;
+        revenue_uplift_pct: number;
+      };
     };
   };
   operational_metrics: {
@@ -195,6 +214,18 @@ export const api = {
       body: JSON.stringify({ payment_id: paymentId, action: action }),
     }),
 
+  markPaid: (paymentId: string) =>
+    fetchJson<{ status: string; message: string }>('/api/recovery/mark-paid', {
+      method: 'POST',
+      body: JSON.stringify({ payment_id: paymentId }),
+    }),
+
+  rejectRecovery: (paymentId: string) =>
+    fetchJson<{ status: string; message: string }>('/api/recovery/reject', {
+      method: 'POST',
+      body: JSON.stringify({ payment_id: paymentId }),
+    }),
+
   runAutonomousAgent: (paymentId: string, customerId?: string) =>
     fetchJson<{ status: string; agent_execution: AgentExecution }>('/api/agent/run', {
       method: 'POST',
@@ -212,4 +243,22 @@ export const api = {
         customer_id: eventType === 'high_value' ? 'c_vip_808' : 'c_demo_101',
       }),
     }),
+
+  getPolicy: () =>
+    fetchJson<{ status: string; policy: any }>('/api/policy'),
+
+  updatePolicy: (policyData: {
+    max_auto_recovery_amount_rupees: number;
+    max_retry_attempts: number;
+    min_recovery_probability: number;
+    max_contact_attempts: number;
+    auto_recovery_enabled: boolean;
+  }) =>
+    fetchJson<{ status: string; message: string; policy: any }>('/api/policy', {
+      method: 'PUT',
+      body: JSON.stringify(policyData),
+    }),
+
+  getAuditLogCsvUrl: () => `${API_BASE_URL}/api/export/audit-logs/csv`,
+  getBenchmarkCsvUrl: () => `${API_BASE_URL}/api/export/benchmark/csv`,
 };

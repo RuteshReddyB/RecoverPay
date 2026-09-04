@@ -4,10 +4,12 @@ import uuid
 import datetime
 import pandas as pd
 import numpy as np
+from typing import Optional
 
-# Set random seed for reproducibility
-random.seed(42)
-np.random.seed(42)
+# Default seed for training data generation
+DEFAULT_SEED = 42
+random.seed(DEFAULT_SEED)
+np.random.seed(DEFAULT_SEED)
 
 FAILURE_REASONS = [
     "bank_timeout",
@@ -134,59 +136,77 @@ def calculate_recovery_probability(
     # Clip to valid probability bounds [0.03, 0.96]
     return float(np.clip(prob, 0.03, 0.96))
 
-def generate_synthetic_dataset(num_records: int = 75000, output_path: str = "data/raw/transactions.csv") -> pd.DataFrame:
-    print(f"Generating {num_records} synthetic transaction failure and recovery records...")
+def generate_synthetic_dataset(
+    num_records: int = 75000,
+    output_path: str = "data/raw/transactions.csv",
+    seed: Optional[int] = None
+) -> pd.DataFrame:
+    """
+    Generate synthetic payment failure and recovery records.
+
+    Args:
+        num_records: Number of transaction records to generate.
+        output_path: CSV file path to save the dataset.
+        seed: Random seed for reproducibility. Defaults to DEFAULT_SEED (42).
+              Use a different seed (e.g. 99) for benchmark test sets to ensure
+              they are generated from a distinct random state vs. training data.
+    """
+    effective_seed = seed if seed is not None else DEFAULT_SEED
+    rng = random.Random(effective_seed)
+    np_rng = np.random.default_rng(effective_seed)
+
+    print(f"Generating {num_records} synthetic transaction failure and recovery records (seed={effective_seed})...")
     
-    # Generate 15,000 distinct customer profiles
+    # Generate distinct customer profiles
     num_customers = num_records // 5
     customer_ids = [f"c_{uuid.uuid4().hex[:8]}" for _ in range(num_customers)]
     customer_profiles = {}
-    
+
     for cid in customer_ids:
-        prev_txns = random.randint(1, 40)
-        succ_rate = float(np.clip(np.random.beta(5, 1.5), 0.2, 0.98))
+        prev_txns = rng.randint(1, 40)
+        succ_rate = float(np.clip(np_rng.beta(5, 1.5), 0.2, 0.98))
         prev_succ = int(round(prev_txns * succ_rate))
         prev_fail = prev_txns - prev_succ
-        ltv_paisa = prev_succ * random.randint(50000, 800000) # ₹500 - ₹8000 avg per txn
-        
+        ltv_paisa = prev_succ * rng.randint(50000, 800000)  # ₹500 - ₹8000 avg per txn
+
         customer_profiles[cid] = {
-            "customer_age": random.randint(18, 65),
-            "customer_lifetime_days": random.randint(10, 1000),
+            "customer_age": rng.randint(18, 65),
+            "customer_lifetime_days": rng.randint(10, 1000),
             "customer_ltv_paisa": ltv_paisa,
             "previous_transactions": prev_txns,
             "previous_successes": prev_succ,
             "previous_failures": prev_fail,
             "historical_success_rate": round(succ_rate, 4),
-            "previous_payment_method": random.choice(PAYMENT_METHODS)
+            "previous_payment_method": rng.choice(PAYMENT_METHODS)
         }
         
     records = []
     start_date = datetime.datetime.now() - datetime.timedelta(days=180)
-    
+
     for i in range(num_records):
-        cid = random.choice(customer_ids)
+        cid = rng.choice(customer_ids)
         c_prof = customer_profiles[cid]
-        
-        amount_paisa = random.choice([
-            random.randint(19900, 99900),     # ₹199 - ₹999
-            random.randint(149900, 499900),   # ₹1499 - ₹4999
-            random.randint(799900, 1499900),  # ₹7999 - ₹14999
-            random.randint(1999900, 4999900)  # ₹19999 - ₹49999
+
+        amount_paisa = rng.choice([
+            rng.randint(19900, 99900),      # ₹199 - ₹999
+            rng.randint(149900, 499900),    # ₹1499 - ₹4999
+            rng.randint(799900, 1499900),   # ₹7999 - ₹14999
+            rng.randint(1999900, 4999900)   # ₹19999 - ₹49999
         ])
-        
-        payment_method = c_prof["previous_payment_method"] if random.random() < 0.7 else random.choice(PAYMENT_METHODS)
-        device_type = random.choice(DEVICE_TYPES)
-        failure_reason = random.choice(FAILURE_REASONS)
+
+        payment_method = c_prof["previous_payment_method"] if rng.random() < 0.7 else rng.choice(PAYMENT_METHODS)
+        device_type = rng.choice(DEVICE_TYPES)
+        failure_reason = rng.choice(FAILURE_REASONS)
         failure_code = FAILURE_CODES[failure_reason]
-        retry_count = random.choice([0, 0, 0, 1, 1, 2, 3])
-        subscription_status = random.choice(SUBSCRIPTION_STATUSES)
-        
+        retry_count = rng.choice([0, 0, 0, 1, 1, 2, 3])
+        subscription_status = rng.choice(SUBSCRIPTION_STATUSES)
+
         checkout_started = 1
         checkout_completed = 0 if failure_reason == "checkout_abandoned" else 1
-        checkout_duration_sec = random.randint(10, 180) if checkout_completed else random.randint(2, 45)
-        
+        checkout_duration_sec = rng.randint(10, 180) if checkout_completed else rng.randint(2, 45)
+
         # Pick recovery action (simulate historic interventions taken by merchant)
-        action = random.choice(RECOVERY_ACTIONS)
+        action = rng.choice(RECOVERY_ACTIONS)
         
         prob_success = calculate_recovery_probability(
             failure_reason=failure_reason,
@@ -197,12 +217,12 @@ def generate_synthetic_dataset(num_records: int = 75000, output_path: str = "dat
             customer_ltv_paisa=c_prof["customer_ltv_paisa"],
             payment_method=payment_method
         )
-        
+
         # Sample recovery outcome based on calculated probability
-        recovery_success = 1 if random.random() < prob_success else 0
+        recovery_success = 1 if rng.random() < prob_success else 0
         amount_recovered_paisa = amount_paisa if recovery_success else 0
-        
-        timestamp = start_date + datetime.timedelta(minutes=random.randint(0, 259200))
+
+        timestamp = start_date + datetime.timedelta(minutes=rng.randint(0, 259200))
         
         record = {
             "transaction_id": f"txn_{uuid.uuid4().hex[:10]}",
@@ -234,11 +254,11 @@ def generate_synthetic_dataset(num_records: int = 75000, output_path: str = "dat
         records.append(record)
         
     df = pd.DataFrame(records)
-    
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df.to_csv(output_path, index=False)
-    print(f"Successfully saved synthetic dataset ({len(df)} records) to {output_path}")
+    print(f"Successfully saved synthetic dataset ({len(df)} records, seed={effective_seed}) to {output_path}")
     return df
 
 if __name__ == "__main__":
-    generate_synthetic_dataset(75000)
+    generate_synthetic_dataset(75000, seed=DEFAULT_SEED)

@@ -65,7 +65,8 @@ class RazorpayService:
                     "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }
             except Exception as e:
-                logger.warning(f"[RAZORPAY SDK ERROR] {e}. Falling back to Test Sandbox link creation.")
+                logger.warning(f"[RAZORPAY API ERROR] {e}. Falling back to Test Sandbox link creation.")
+                error_msg = str(e)
 
         # Sandbox Fallback Generator
         plink_id = f"plink_test_{uuid.uuid4().hex[:10]}"
@@ -79,7 +80,8 @@ class RazorpayService:
             "amount_paisa": amount_paisa,
             "amount_rupees": float(paisa_to_rupees(amount_paisa)),
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "sandbox_mode": True
+            "sandbox_mode": True,
+            "api_warning": error_msg if 'error_msg' in locals() else None
         }
 
     def retry_payment(self, razorpay_payment_id: str) -> Dict[str, Any]:

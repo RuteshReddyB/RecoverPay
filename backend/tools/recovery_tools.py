@@ -71,23 +71,49 @@ def predict_recovery_probability(
     customer_id: str,
     payment_id: str,
     failure_reason: str = "bank_timeout",
-    action: str = "RETRY"
+    action: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Predict P(recovery_success | context, action) using trained ML model."""
+    """
+    Predict P(recovery_success | context, action) using trained ML model.
+
+    When action is None (default), evaluates all candidate actions and returns the
+    complete probability table. This is what the agent uses in Step 3 to surface
+    the full multi-action evaluation in the reasoning trace.
+
+    When action is specified, returns the probability for that specific action only.
+    """
     customer_info = get_customer_history(customer_id)
     payment_info = get_payment_details(payment_id)
     payment_info["failure_reason"] = failure_reason
 
     ml_eval = predictor.evaluate_all_actions(customer_info, payment_info)
-    target_option = next((opt for opt in ml_eval["all_actions"] if opt["action"] == action), ml_eval["all_actions"][0])
 
-    return {
-        "status": "success",
-        "action": action,
-        "probability": target_option["probability"],
-        "probability_pct": target_option["probability_pct"],
-        "all_candidate_actions": ml_eval["all_actions"]
-    }
+    if action is not None:
+        # Single-action lookup
+        target_option = next(
+            (opt for opt in ml_eval["all_actions"] if opt["action"] == action),
+            ml_eval["all_actions"][0]
+        )
+        return {
+            "status": "success",
+            "mode": "single_action",
+            "action": action,
+            "probability": target_option["probability"],
+            "probability_pct": target_option["probability_pct"],
+            "expected_recovery_rupees": target_option["expected_recovery_rupees"],
+            "all_candidate_actions": ml_eval["all_actions"]
+        }
+    else:
+        # Full multi-action evaluation (default) — this is what the agent Step 3 calls
+        return {
+            "status": "success",
+            "mode": "all_actions",
+            "recommended_action": ml_eval["recommended_action"],
+            "recommended_probability": ml_eval["recommended_probability"],
+            "recommended_expected_recovery_rupees": ml_eval["recommended_expected_recovery_rupees"],
+            "all_candidate_actions": ml_eval["all_actions"],
+            "model_used": ml_eval.get("model_used", "XGBoost")
+        }
 
 def calculate_expected_recovery(amount_paisa: int, probability: float) -> Dict[str, Any]:
     """Calculate expected recovery value = Amount * Probability."""
