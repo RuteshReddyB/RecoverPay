@@ -26,21 +26,14 @@ import { LayoutDashboard, ListFilter, ShieldAlert, History, BarChart3, RefreshCw
 export const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'queue' | 'escalations' | 'audit' | 'benchmark'>('overview');
   
-  // Data states — initialized with live benchmark metrics to eliminate UI flash on page reload
-  const [kpis, setKpis] = useState<OverviewKPIs>({
-    revenue_at_risk_rupees: 1245164.58,
-    revenue_recovered_rupees: 937221.61,
-    recovery_rate_pct: 75.27,
-    ai_uplift_pct: 180.85,
-    additional_recovered_rupees: 603508.28,
-    active_recovery_cases: 127,
-  });
+  // Data states — dynamic state initialized cleanly with skeleton support
+  const [kpis, setKpis] = useState<OverviewKPIs | null>(null);
 
   const [funnel, setFunnel] = useState<RevenueFunnel>({
-    revenue_at_risk_rupees: 1245164.58,
-    eligible_for_recovery_rupees: 174296.41,
-    interventions_executed_rupees: 722195.45,
-    successfully_recovered_rupees: 937221.61,
+    revenue_at_risk_rupees: 0,
+    eligible_for_recovery_rupees: 0,
+    interventions_executed_rupees: 0,
+    successfully_recovered_rupees: 0,
   });
 
   const [queue, setQueue] = useState<RecoveryCase[]>([]);
@@ -53,6 +46,7 @@ export const AppContent: React.FC = () => {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [isBackendConnected, setIsBackendConnected] = useState(true);
   const [isMockMode, setIsMockMode] = useState(false);
   const [policyData, setPolicyData] = useState({
@@ -102,6 +96,7 @@ export const AppContent: React.FC = () => {
       console.error('Failed loading dashboard data:', e);
     } finally {
       setIsRefreshing(false);
+      setInitialLoading(false);
     }
   };
 
@@ -229,7 +224,7 @@ export const AppContent: React.FC = () => {
         {/* View 1: Overview */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <KpiCards kpis={kpis} totalTrackedCases={queue.length} />
+            <KpiCards kpis={kpis} totalTrackedCases={queue.length} isLoading={initialLoading} />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
                 <RevenueFunnelChart funnel={funnel} />

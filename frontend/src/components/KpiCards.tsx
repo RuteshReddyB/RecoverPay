@@ -3,20 +3,40 @@ import { AlertCircle, CheckCircle2, TrendingUp, Sparkles } from 'lucide-react';
 import { OverviewKPIs } from '../services/api';
 
 interface KpiCardsProps {
-  kpis: OverviewKPIs;
+  kpis: OverviewKPIs | null;
   totalTrackedCases?: number;
+  isLoading?: boolean;
 }
 
-export const KpiCards: React.FC<KpiCardsProps> = ({ kpis, totalTrackedCases }) => {
-  const formatRupees = (amount: number) => {
+export const KpiCards: React.FC<KpiCardsProps> = ({ kpis, totalTrackedCases, isLoading }) => {
+  const formatRupees = (amount: number = 0) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(amount || 0);
   };
 
-  const trackedCount = totalTrackedCases || kpis.active_recovery_cases || 127;
+  if (isLoading || !kpis) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm animate-pulse">
+            <div className="flex items-center justify-between">
+              <div className="h-3 w-24 bg-slate-200 dark:bg-slate-800 rounded"></div>
+              <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800"></div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="h-7 w-32 bg-slate-200 dark:bg-slate-800 rounded"></div>
+              <div className="h-3 w-28 bg-slate-100 dark:bg-slate-800 rounded"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const trackedCount = totalTrackedCases ?? kpis.active_recovery_cases ?? 0;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -74,7 +94,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({ kpis, totalTrackedCases }) =
         </div>
         <div className="mt-3">
           <span className="text-2xl sm:text-3xl font-bold font-outfit text-indigo-600 dark:text-indigo-400">
-            {kpis.recovery_rate_pct.toFixed(1)}%
+            {(kpis.recovery_rate_pct || 0).toFixed(1)}%
           </span>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
             <span>vs {((kpis as any).baseline_recovery_rate_pct ?? 25.1).toFixed(1)}% baseline</span>
@@ -94,7 +114,7 @@ export const KpiCards: React.FC<KpiCardsProps> = ({ kpis, totalTrackedCases }) =
         </div>
         <div className="mt-3">
           <span className="text-2xl sm:text-3xl font-bold font-outfit text-purple-600 dark:text-purple-400">
-            +{kpis.ai_uplift_pct.toFixed(1)}%
+            +{(kpis.ai_uplift_pct || 0).toFixed(1)}%
           </span>
           <p className="mt-1 text-xs text-purple-600 dark:text-purple-400 font-medium flex items-center gap-1">
             <span>Verified across 1,000+ test events</span>

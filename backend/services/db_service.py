@@ -106,6 +106,12 @@ class PaymentRepository:
         return payments
 
     @staticmethod
+    def get_all_payments() -> List[PaymentSchema]:
+        db, _ = get_db()
+        docs = db.collection("payments").stream()
+        return [PaymentSchema(**d.to_dict()) for d in docs]
+
+    @staticmethod
     def update_payment_status(payment_id: str, status: str) -> Optional[PaymentSchema]:
         db, _ = get_db()
         doc_ref = db.collection("payments").document(payment_id)
