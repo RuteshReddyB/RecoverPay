@@ -2,46 +2,73 @@
 
 > **Razorpay AI Buildathon Submission — Track 03: Agentic AI for Payment Recovery**
 >
-> RecoverPay AI is an enterprise-grade autonomous payment recovery agent designed to intelligently diagnose transaction failure root causes, predict intervention success probabilities using a trained XGBoost classifier, validate actions against strict merchant safety policies, and execute optimal recovery workflows via Razorpay Test APIs.
+> RecoverPay AI is an enterprise-grade autonomous payment recovery agent designed to intelligently diagnose transaction failure root causes, predict intervention win probabilities using an XGBoost classifier, validate actions against strict merchant safety policies, and execute optimal recovery workflows via Razorpay APIs.
+
+---
+
+## 🌐 Live Production Deployment URLs
+
+| Service | Platform | Live URL | Status |
+| :--- | :--- | :--- | :---: |
+| **Frontend Web App** | **Firebase Hosting** | **[https://recoverpayai.web.app](https://recoverpayai.web.app/)** | 🟢 Live |
+| **Production Backend API** | **Render.com** | **[https://recoverpay.onrender.com](https://recoverpay.onrender.com)** | 🟢 Live |
+| **API Documentation (Swagger)** | **FastAPI Docs** | **[https://recoverpay.onrender.com/docs](https://recoverpay.onrender.com/docs)** | 🟢 Live |
+| **API Health Check** | **Render.com** | **[https://recoverpay.onrender.com/api/health](https://recoverpay.onrender.com/api/health)** | 🟢 Live |
+| **Demo Video Script** | **Documentation** | **[docs/demo_video_script.md](docs/demo_video_script.md)** | 🟢 Ready |
 
 ---
 
 ## 🌟 Executive Highlights
 
-- **+203.02% Honest Revenue Recovery Uplift**: Empirically verified across 1,000 payment failure events using fair, symmetric simulation — AI path uses raw XGBoost predictions with no probability floor or boost (seed=99, reproducible). AI: 76.17% recovery rate vs. Baseline: 25.14%.
-- **Three-Strategy Comparison**: Fixed Retry Baseline → Rule-Based Lookup → RecoverPay AI — demonstrating the model adds value beyond a simple if/else heuristic.
+- **+203.02% Honest Revenue Recovery Uplift**: Empirically verified across 1,000 payment failure events using fair, symmetric simulation — AI path uses raw XGBoost predictions with no probability floor or boost (seed=99, reproducible). AI: **76.17% recovery rate** vs. Baseline: **25.14%**.
+- **Three-Strategy Comparison**: Fixed Retry Baseline → Rule-Based Lookup → RecoverPay AI — demonstrating the model adds value beyond simple if/else heuristics.
 - **8 Structured Agent Tools**: Operates strictly within type-safe boundaries (`get_payment_details`, `get_customer_history`, `predict_recovery_probability`, `calculate_expected_recovery`, `validate_policy`, `execute_razorpay_action`, `escalate_to_human`, `record_outcome`).
-- **Deterministic Policy Engine**: Hard business safety boundaries (Max Auto Recovery Amount $\le$ ₹10,000, Max Retries $< 2$, Min Probability $\ge 40\%$) that deterministically override AI recommendations when breached.
-- **Adaptive Agent with Retry Loop**: If an execution fails, the agent re-evaluates excluding the failed action and tries the next best policy-approved option (max 2 attempts).
-- **Transparent 7-Step Reasoning Trace**: Every decision logs a complete tool invocation timeline. Step 3 surfaces the full 5-action ML probability table in the trace — not just a single default action.
+- **Deterministic Policy Engine with Industry Presets**: Hard business safety boundaries with 1-click presets for **SaaS Subscriptions**, **E-Commerce Retail**, **B2B High-Ticket**, and **Standard Balanced** models.
+- **Interactive Omnichannel Customer Outreach**: Previews personalized WhatsApp Interactive, SMS, and Branded Email notifications with an embedded **1-Click Razorpay Checkout Gateway Simulation**.
+- **Real-Time Recovery Queue Auto-Update**: Completing a payment via customer link or webhook instantly captures the transaction, clears the case from the queue, and updates recovered revenue in real-time.
+- **Role-Based Access Control (RBAC)**: Strict permission gating across 3 distinct personas: **Merchant Admin**, **Operations Lead**, and **Compliance Auditor**.
+- **Immutable SHA-256 Audit Trail**: Every AI tool call, webhook, and human override generates a cryptographically hashed, append-only log entry with CSV and Executive PDF export capabilities.
 
 ---
 
 ## 🏗️ System Architecture Overview
 
-```text
-Payment Failure Webhook / API Event
-                ↓
-    Razorpay Webhook Receiver
-   (HMAC SHA256 & Idempotency Filter)
-                ↓
-   Autonomous AI Recovery Agent
-                │
-   ┌────────────┴──────────────────────────┐
-   │ Structured Tool Execution Cycle       │
-   │ 1. get_payment_details()              │
-   │ 2. get_customer_history()             │
-   │ 3. predict_recovery_probability() (XGBoost)
-   │ 4. calculate_expected_recovery()      │
-   │ 5. validate_policy() (Policy Engine)  │
-   │ 6. execute_razorpay_action() / Escalate
-   │ 7. record_outcome() (SHA-256 Audit Log)
-   └────────────┬──────────────────────────┘
-                ↓
-Razorpay Sandbox Intervention (Payment Link / Instant Retry / SMS Reminder)
-                ↓
-    Firebase Firestore Database (Append-Only Audit Trail)
+```mermaid
+graph TD
+    Failure["Payment Failure Webhook / API Event"] --> Ingestion["Razorpay Webhook Ingestion & HMAC SHA256 Filter"]
+    Ingestion --> Agent["Autonomous AI Recovery Agent"]
+    
+    subgraph Agentic Cycle ["7-Step Structured Reasoning Trace"]
+        Agent --> T1["1. get_payment_details()"]
+        T1 --> T2["2. get_customer_history()"]
+        T2 --> T3["3. predict_recovery_probability() (XGBoost ML)"]
+        T3 --> T4["4. calculate_expected_recovery() (Integer Paisa)"]
+        T4 --> T5["5. validate_policy() (Deterministic Policy Engine)"]
+        T5 --> T6["6. execute_razorpay_action() / Human Escalation"]
+        T6 --> T7["7. record_outcome() (SHA-256 Cryptographic Hash)"]
+    end
+    
+    T6 -->|Approved Auto-Action| Gateway["Razorpay Gateway (Silent API Retry / WhatsApp Link)"]
+    T6 -->|Policy Breach| Escalation["Human Escalations Workspace (VIP Concierge / Wire / Retry)"]
+    
+    Gateway --> Firestore["Cloud Firestore Database"]
+    Escalation --> Firestore
 ```
+
+---
+
+## 👥 Role-Based Access Control (RBAC) Matrix
+
+| Feature / Action | 👑 Merchant Admin (`MERCHANT_ADMIN`) | 🛠️ Operations Lead (`OPERATIONS_LEAD`) | 🛡️ Compliance Auditor (`COMPLIANCE_AUDITOR`) |
+| :--- | :---: | :---: | :---: |
+| **View Dashboards, Benchmarks & ROI** | ✅ Allowed | ✅ Allowed | ✅ Allowed |
+| **Inspect AI Reasoning & Decision Trees** | ✅ Allowed | ✅ Allowed | ✅ Allowed (Read-Only) |
+| **View Immutable Audit Logs & Hashes** | ✅ Allowed | ✅ Allowed | ✅ Allowed |
+| **Export CSV & Executive PDF Reports** | ✅ Allowed | ✅ Allowed | ✅ Allowed |
+| **Execute AI Recovery Actions from Queue** | ✅ Allowed | ✅ Allowed | 🔒 **Locked** (Read-Only) |
+| **Resolve Human Escalations (Triage)** | ✅ Allowed | ✅ Allowed | 🔒 **Locked** (Read-Only) |
+| **Tune & Save Policy Engine Rules** | ✅ Allowed | 🔒 **Locked** (View Only) | 🔒 **Locked** (View Only) |
+| **Inject Synthetic Failure Simulation Events** | ✅ Allowed | 🔒 **Locked** (Admin Only) | 🔒 **Locked** (Admin Only) |
 
 ---
 
@@ -79,10 +106,10 @@ Razorpay Sandbox Intervention (Payment Link / Instant Retry / SMS Reminder)
 
 ### Option B: One-Command Docker Deployment
 
-Launch backend (`:8000`) and frontend (`:5173`) using Docker Compose:
+Launch backend (`:8010`) and frontend (`:5174`) using Docker Compose:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 ---
@@ -90,8 +117,6 @@ docker compose up --build
 ## 📊 Verified 1,000-Event Benchmark Performance
 
 We ran a batch evaluation across **1,000 payment failure events** (seed=99, reproducible) comparing three strategies head-to-head across the exact same event pool:
-
-**Methodology**: All strategies are evaluated against the same domain probability surface. The AI path uses only raw XGBoost model predictions with no probability floor, boost, or hand-tuned override — what the model predicts is what the simulation uses.
 
 | Metric | Fixed Retry Baseline | Rule-Based Lookup | RecoverPay AI | AI vs Baseline |
 | :--- | :--- | :--- | :--- | :--- |
@@ -103,31 +128,17 @@ We ran a batch evaluation across **1,000 payment failure events** (seed=99, repr
 | **Avoided Doomed Retries** | 0 | Partial | **Full avoidance** | Card issuer ban prevention |
 | **Human Escalations** | 0 | 0 | **Triggered at >₹10k** | Strict safety cap enforced |
 
-> **Methodology note**: All strategies evaluated against the same probability surface. AI path uses raw XGBoost predictions only — no floor, no boost. Benchmark seed=99 is separate from training seed=42, ensuring no train/test overlap.
-
 ---
 
 ## 🧪 Automated Verification & Testing
 
-Run all **42 automated backend unit and integration tests**:
+Run all **67 automated backend unit, integration, and security tests**:
 
 ```bash
-python -m pytest tests/
+python -m pytest tests/ -v
 ```
 
-Run the end-to-end Razorpay demo (offline mode, no server required):
-
-```bash
-python scripts/demo_razorpay_e2e.py --offline
-```
-
-Or with the backend running:
-
-```bash
-python scripts/demo_razorpay_e2e.py  # connects to http://localhost:8000
-```
-
-Run frontend build verification:
+Run frontend production build verification:
 
 ```bash
 cd frontend
@@ -141,23 +152,27 @@ npm run build
 ```text
 RecoverPay/
 ├── backend/
-│   ├── agents/          # Autonomous Agent Engine (recovery_agent.py) — retry loop
-│   ├── api/             # FastAPI REST Routers (prediction, recovery, webhooks, agent, analytics)
+│   ├── agents/          # Autonomous Agent Engine (recovery_agent.py) with Adaptive Retry Loop
+│   ├── api/             # FastAPI REST Routers (prediction, recovery, webhooks, auth, simulator, policy, export)
 │   ├── db/              # Firebase Firestore SDK & Mock Runner (firebase.py)
-│   ├── evaluation/      # 1,000-Event Batch Evaluator — 3-strategy honest comparison
-│   ├── ml/              # XGBoost ML Model, Predictor & Training Pipeline
-│   ├── policies/        # Deterministic Policy Engine (policy_engine.py)
-│   ├── schemas/         # Pydantic Data Models (customer, payment, recovery, policy, audit)
-│   ├── services/        # Business Logic Repositories & Razorpay SDK Client
-│   └── tools/           # 8 Typed Agent Tool Definitions (recovery_tools.py)
+│   ├── evaluation/      # 1,000-Event Batch Evaluator — 3-Strategy Honest Comparison
+│   ├── ml/              # XGBoost ML Model, SHAP Explainability & Predictor Pipeline
+│   ├── policies/        # Deterministic Policy Engine & Industry Presets (policy_engine.py)
+│   ├── schemas/         # Pydantic Data Models (customer, payment, recovery, policy, escalation, audit)
+│   ├── services/        # Business Logic Repositories, Notification Client & Razorpay SDK Client
+│   ├── tools/           # 8 Typed Agent Tool Definitions (recovery_tools.py)
+│   └── utils/           # Integer Paisa Math, Masking & HMAC SHA256 Signature Security
 ├── data/                # 75,000 Synthetic Dataset & Seeded Generator
-├── docs/                # Architecture, API & Evaluation Specs
+├── docs/                # Architecture Specs, API Contracts & Demo Video Script (demo_video_script.md)
 ├── frontend/            # React + TypeScript + Vite + Tailwind Control Center
+│   ├── src/components/  # Dashboard, Modals (Checkout, Simulator, Policy, Escalation), Drawer & Charts
+│   └── src/context/     # Auth Context (RBAC) & Theme Context (Dark/Light Mode)
 ├── models/              # Saved XGBoost Model, Benchmark Report & Split Metadata
-├── scripts/             # demo_razorpay_e2e.py — E2E pipeline demo script
-├── tests/               # 42 Automated Pytest Unit & Integration Tests
-├── Dockerfile.backend   # Backend Container Config
+├── tests/               # 67 Automated Pytest Unit, Integration & Security Tests
+├── Dockerfile.backend   # Backend Container Config (Cloud Run / Docker)
 ├── Dockerfile.frontend  # Frontend Nginx Container Config
+├── firebase.json        # Firebase Hosting Configuration
+├── render.yaml          # Render.com 1-Click Deployment Blueprint
 └── docker-compose.yml   # Multi-Container Compose Config
 ```
 
@@ -165,10 +180,10 @@ RecoverPay/
 
 ## 🔐 Security & Compliance
 
-- **PII Masking**: Customer emails (`j***n@example.com`) and phone numbers (`+91******3210`) are redacted before logging or displaying.
-- **Integer Paisa Math**: All monetary calculations use Integer Paisa (`₹4,999.00` = `499900 paisa`) ensuring **0% floating-point math error**.
+- **PII Masking**: Customer emails (`j***n@example.com`) and phone numbers (`+91******3210`) are redacted before logging or displaying in accordance with DPDP regulations.
+- **Integer Paisa Math**: All monetary calculations use Integer Paisa (`₹4,999.00` = `499900 paisa`) ensuring **0% floating-point precision error**.
 - **Cryptographic Audit Trail**: Every decision generates an immutable audit log entry with SHA-256 event checksums.
-- **HMAC Signature Check**: Webhook receiver verifies Razorpay HMAC SHA256 signatures in constant-time with duplicate `event_id` idempotency rejection.
+- **HMAC Signature Verification**: Webhook receiver verifies Razorpay HMAC SHA256 signatures in constant time with duplicate `event_id` idempotency rejection.
 
 ---
 
@@ -176,4 +191,7 @@ RecoverPay/
 
 - **Track**: Track 03 — Agentic AI for Payment Recovery
 - **Repository**: [GitHub - RuteshReddyB/RecoverPay](https://github.com/RuteshReddyB/RecoverPay)
-- **Primary Innovation**: Autonomous 8-Tool Agent + XGBoost Expected Value Optimization + Deterministic Policy Safety Boundaries + 7-Step Reasoning Trace + Adaptive Retry Loop + Honest 3-Strategy Benchmark Comparison.
+- **Live Demo**: [https://recoverpayai.web.app](https://recoverpayai.web.app/)
+- **Live Backend API**: [https://recoverpay.onrender.com](https://recoverpay.onrender.com)
+- **Video Demonstration Script**: [docs/demo_video_script.md](docs/demo_video_script.md)
+- **Primary Innovation**: 8-Tool Autonomous Agent + XGBoost Expected Value Optimization + Deterministic Policy Engine with Industry Presets + Omnichannel Outreach with 1-Click Razorpay Checkout + Human Escalation Workspace + Immutable Cryptographic Audit Trail + Role-Based Access Control.
