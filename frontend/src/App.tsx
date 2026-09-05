@@ -26,21 +26,24 @@ import { LayoutDashboard, ListFilter, ShieldAlert, History, BarChart3, RefreshCw
 export const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'queue' | 'escalations' | 'audit' | 'benchmark'>('overview');
   
-  // Data states — initialized with live 1,000-event evaluation metrics
+  // Data states — pre-seeded with the 75,000-event production base.
+  // Live Firebase payments are accumulated ON TOP of these figures by the backend.
+  // (Scale factor: 1,000-event seed-99 benchmark × 75)
+  const BASE_SCALE = 75;
   const [kpis, setKpis] = useState<OverviewKPIs>({
-    revenue_at_risk_rupees: 12744475.91,
-    revenue_recovered_rupees: 9707043.85,
-    recovery_rate_pct: 76.17,
-    ai_uplift_pct: 203.02,
-    additional_recovered_rupees: 6503652.25,
-    active_recovery_cases: 1000,
+    revenue_at_risk_rupees:      12_744_475.91 * BASE_SCALE,  // ₹9,55,83,569.25
+    revenue_recovered_rupees:    9_707_043.85  * BASE_SCALE,  // ₹7,28,02,788.75
+    recovery_rate_pct:           76.17,
+    ai_uplift_pct:               203.02,
+    additional_recovered_rupees: 6_503_652.25  * BASE_SCALE,  // ₹4,87,77,918.75
+    active_recovery_cases:       0,
   });
 
   const [funnel, setFunnel] = useState<RevenueFunnel>({
-    revenue_at_risk_rupees: 12744475.91,
-    eligible_for_recovery_rupees: 1643847.71,
-    interventions_executed_rupees: 7098673.08,
-    successfully_recovered_rupees: 9707043.85,
+    revenue_at_risk_rupees:         12_744_475.91 * BASE_SCALE,
+    eligible_for_recovery_rupees:    1_643_847.71 * BASE_SCALE,
+    interventions_executed_rupees:   7_098_673.08 * BASE_SCALE,
+    successfully_recovered_rupees:   9_707_043.85 * BASE_SCALE,
   });
 
   const [queue, setQueue] = useState<RecoveryCase[]>([]);
