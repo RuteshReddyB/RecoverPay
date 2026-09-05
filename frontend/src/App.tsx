@@ -86,7 +86,17 @@ export const AppContent: React.FC = () => {
 
       if (kpiRes?.kpis) setKpis(kpiRes.kpis);
       if (funnelRes?.funnel) setFunnel(funnelRes.funnel);
-      if (queueRes?.queue) setQueue(queueRes.queue);
+      if (queueRes?.queue) {
+        setQueue(queueRes.queue);
+        // Override active_recovery_cases with the live queue count
+        if (kpiRes?.kpis) {
+          setKpis((prev) => prev ? {
+            ...prev,
+            ...kpiRes.kpis,
+            active_recovery_cases: queueRes.queue.length,
+          } : kpiRes.kpis);
+        }
+      }
       if (auditRes?.logs) setAuditLogs(auditRes.logs);
       if (benchRes?.report) setBenchmarkReport(benchRes.report);
       if (policyRes?.policy) setPolicyData({
