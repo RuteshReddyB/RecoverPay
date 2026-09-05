@@ -2,7 +2,7 @@ const API_BASE_URL =
   (import.meta as any).env?.VITE_API_BASE_URL || 
   (import.meta as any).env?.VITE_API_URL || 
   (typeof window !== 'undefined' && (window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com') || window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
-    ? 'https://recoverpay-backend.onrender.com' 
+    ? 'https://recoverpay.onrender.com' 
     : (typeof window !== 'undefined' && window.location.port === '5174' ? 'http://127.0.0.1:8010' : 'http://127.0.0.1:8000'));
 
 export interface HealthResponse {
